@@ -1,13 +1,12 @@
 .SUFFIXES = .cpp .o
 
-#SRCS = wc_group.cpp wc_ipc.cpp wc_thread.cpp wc_threadgroup.cpp wc_threadgroupth.cpp wc_socket.cpp wc_socketrudp.cpp wc_socketssl.cpp wc_socketgroup.cpp wc_struct.cpp wc_linkedlist.cpp wc_stack.cpp wc_db.cpp wc_dbgroup.cpp wc_mysql.cpp wc_oracle.cpp
 SRCS = $(wildcard *.cpp)
 #SRCH = $(SRCS:.cpp=.h)
 SRCH = *.h
 OBJS = $(SRCS:.cpp=.o)
 #INC = -I$(MYSQL_INC) -I$(ORACLE_INC)
-DIR_LIB = $(HOME)/aprogram/lib/
-DIR_INC = $(HOME)/aprogram/inc/
+DIR_LIB = ../exe/lib/
+DIR_INC = ../exe/inc/
 
 #CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -std=c++11 -c -D_REENTRANT -Wno-write-strings -Wno-ignored-qualifiers
 CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -std=c++11 -c -D_REENTRANT
@@ -23,8 +22,9 @@ TARGETSL = $(TARGETSO:.so.0.9.0=.so)
 $(TARGETS) : $(OBJS)
 	$(CXX) -shared -o $(TARGETSO) $^
 	rm -rf $(DIR_LIB)$(TARGETSL)
-	cp -f $(TARGETSO) $(DIR_LIB)
-	ln -s $(DIR_LIB)$(TARGETSO) $(DIR_LIB)$(TARGETSL)
+	mv $(TARGETSO) $(DIR_LIB)
+#	cp -f $(TARGETSO) $(DIR_LIB)
+#	ln -s $(DIR_LIB)$(TARGETSO) $(DIR_LIB)$(TARGETSL)
 	cp -f $(SRCH) $(DIR_INC)
 
 .cpp.o :
