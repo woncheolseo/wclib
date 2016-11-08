@@ -1,0 +1,590 @@
+/**   
+	@file wc_socketrudp.cpp
+   	@brief WCSocketRUDP 소스
+*/
+
+#include "wc_lib.h"
+
+WCSocketRUDP::WCSocketRUDP() : WCSocket()
+{
+	InitVal();
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[SocketR:WCSocketRUDP] (111) (m_nRBuf:%d)(m_pcRBuf:%p)\n", m_nRecvBuf,m_pcRecvBuf);
+}
+
+WCSocketRUDP::WCSocketRUDP(const int nSockMode, const char *pcIp, const unsigned short usPort, const unsigned short usSockDomain, const int nSockType, const int nSockProtocol, const int nFd) : WCSocket(nSockMode,pcIp,usPort,usSockDomain,nSockType,nSockProtocol,nFd)
+{
+	InitVal();
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[SocketR:WCSocketRUDP] (222) (m_nRBuf:%d)(m_pcRBuf:%p)\n", m_nRecvBuf,m_pcRecvBuf);
+}
+
+WCSocketRUDP::~WCSocketRUDP()
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+
+	DeleteTimer(this); // 타이머삭제
+
+	// 리스트 메모리 해제
+	pthread_mutex_lock(&m_MutexRudp);
+	for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++) {
+		WcXDelete(*rit_list);
+		m_listRudpR.remove(*rit_list);
+		rit_list--;
+	}
+	pthread_mutex_unlock(&m_MutexRudp);
+	pthread_mutex_destroy(&m_MutexRudp);
+
+	for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++) {
+		WcXDelete(*rit_list);
+		m_listRudpS.remove(*rit_list);
+		rit_list--;
+	}
+
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[SocketR:~WCSocketRUDP] (m_nRBuf:%d)(m_pcRBuf:%p)\n", m_nRecvBuf,m_pcRecvBuf);
+}
+
+inline void WCSocketRUDP::InitVal()
+{
+	m_usRudpAck = 0;
+	m_listRudpR.clear();
+	m_listRudpS.clear();
+	pthread_mutex_init(&m_MutexRudp,NULL);
+}
+
+void WCSocketRUDP::VTimer(const timer_t tTimer, const int nTimerID)
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+	T_RUDP_PACK *pPack=NULL;
+	char cIp[20];
+	unsigned short usPort;
+	unsigned short usSeq,usAck;
+	int nRet;
+
+	// 패킷맵의 요소를 전부 출력
+	//WCTRACEM
+	//(
+	//	for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++)
+	//		WCTRACE(WCLog::E_MODE_ALL,"[SO:Tmr][%03d] ListRudpR [Sz:%d][%s][%03d][%u][%u]\n", m_nFd, m_listRudpR.size(), (*rit_list)->cIp, (*rit_list)->usPort, ntohs((*rit_list)->tRudp.h.usSeq), ntohs((*rit_list)->tRudp.h.usAck));
+	//	for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++)
+	//		WCTRACE(WCLog::E_MODE_ALL,"[SO:Tmr][%03d] ListRudpS [Sz:%d][%s][%03d][%u][%u]\n", m_nFd, m_listRudpR.size(), (*rit_list)->cIp, (*rit_list)->usPort, ntohs((*rit_list)->tRudp.h.usSeq), ntohs((*rit_list)->tRudp.h.usAck));
+	//);
+
+	pthread_mutex_lock(&m_MutexRudp);
+	// 송수신Rudp 체크
+	for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++) {
+		if ((*rit_list) && (*rit_list)->tTimer==tTimer) {
+			pPack = *rit_list;
+			break;
+		}
+	}
+	if (!pPack) {
+		for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++) {
+			if ((*rit_list) && (*rit_list)->tTimer==tTimer) {
+				pPack = *rit_list;
+				break;
+			}
+		}
+	}
+	if (!pPack) {
+		pthread_mutex_unlock(&m_MutexRudp);
+		WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] END (pPack == NULL)\n", m_nFd);
+		return;
+	}
+	else {
+		memset(cIp,0x00,sizeof(cIp));
+		WcXStrcpy(cIp,pPack->cIp);
+		usPort = pPack->usPort;
+		usSeq = pPack->tRudp.h.usSeq;
+		usAck = pPack->tRudp.h.usAck;
+	}
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] Info (Ip:%s)(Port:%5d) (Seq:%d)(Ack:%d)\n", m_nFd,cIp,usPort,ntohs(usSeq),ntohs(usAck));
+
+	// 수신패킷 처리
+	if(pPack->nSendCnt == -1)
+	{
+		// 현재 패킷과 관련된 모든 패킷을 삭제한다. (IP, 포트가 동일한 모든 패킷 삭제)
+		for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++) 
+		{
+			//if ((*rit_list) && strcmp((*rit_list)->cIp,cIp)==0 && (*rit_list)->usPort==usPort && ntohs((*rit_list)->tRudp.h.usSeq)==ntohs(usAeq) ) {
+			if ((*rit_list) && strcmp((*rit_list)->cIp,cIp)==0 && (*rit_list)->usPort==usPort) {
+				WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] ListRudpR delete (Ip:%s)(Port:%5d)\n", m_nFd,cIp,usPort);
+				WcXDelete(*rit_list);
+				m_listRudpR.remove(*rit_list);
+				rit_list--;
+			}
+		}
+		WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] ListRudpR(%d)\n", m_nFd,m_listRudpR.size());
+	}
+	// 송신패킷 처리 
+	else
+	{
+		// 송신제한횟수를 초과하면 현재 패킷과 관련된 모든 패킷을 삭제
+		if(pPack->nSendCnt >= m_ncLimitSendCnt)
+		{
+			for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++) 
+			{
+				//if( strcmp((*rit_list)->cIp,cIp)==0 && (*rit_list)->usPort==usPort && ntohs((*rit_list)->tRudp.h.usAck)==ntohs(usAck)) {
+				if ((*rit_list) && strcmp((*rit_list)->cIp,cIp)==0 && (*rit_list)->usPort==usPort) {
+					WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] ListRudpS delete (Ip:%s)(Port:%d)\n", m_nFd,cIp,usPort);
+					WcXDelete(*rit_list);
+					m_listRudpS.remove(*rit_list);
+					rit_list--;
+				}
+			}
+		}
+		else
+		{
+			// 패킷 재송신
+			if ((nRet=VWrite((char *)&pPack->tRudp, ntohl(pPack->tRudp.h.unDataLen)+sizeof(T_RUDP_HEADER), pPack->cIp, pPack->usPort)) == -1)
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:VTimer][%03d] Write(%s)(%d)(%s)\n", m_nFd, pPack->cIp, pPack->usPort, (char *)strerror(errno));
+			pPack->nSendCnt++;
+			if( (pPack->tTimer = StartTimer(m_dwcAckTimeS,0,1)) == NULL) {
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:VTimer][%03d] socktimer_start(%s)\n", m_nFd, (char *)strerror(errno));
+				WcXDelete(pPack);
+			}
+			WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] Write (Ret:%d)(Seq:%u)(Ack:%u)(Timer:%lu)(Ip:%s)(Port:%d)\n", m_nFd,nRet,ntohs(pPack->tRudp.h.usSeq),ntohs(pPack->tRudp.h.usAck),pPack->tTimer,pPack->cIp,pPack->usPort);
+		}
+		WCTRACE(WCLog::E_MODE_ALL,"[SocketR:VTimer][%03d] ListRudpS(%d)\n", m_nFd,m_listRudpS.size());
+	}
+	pthread_mutex_unlock(&m_MutexRudp);
+}
+
+int WCSocketRUDP::WriteRudpSignal(T_RUDP_PACK *pPack, const char *pcIp, const unsigned short usPort, const int nSendCnt, const unsigned short usSeq, const unsigned usAck, const unsigned char ucFlag)
+{
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpSignal][%03d] START (IP:%s)(Port:%5d)\n", m_nFd,pcIp,usPort);
+	int nRet;
+	memset(pPack,0x00,sizeof(T_RUDP_PACK));
+	WcXStrcpy(pPack->cIp, pcIp);
+	pPack->usPort = usPort;	
+	pPack->nSendCnt = nSendCnt;
+	//pPack->timer = ;
+	pPack->tRudp.h.usSeq = htons(usSeq);
+	pPack->tRudp.h.usAck = htons(usAck);
+	pPack->tRudp.h.ucFlag = ucFlag;
+	pPack->tRudp.h.unDataLen = htonl(0);
+	pPack->tRudp.h.unCheckSum = htonl(0);
+	nRet = VWrite((char *)&pPack->tRudp, sizeof(T_RUDP_HEADER), pcIp, usPort);
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpSignal][%03d] END (IP:%s)(Port:%5d) (Send:%d)(Seq:%u)(Ack:%u)(Flag:%02x)\n", m_nFd,pPack->cIp, pPack->usPort, nRet, usSeq,usAck,ucFlag);
+
+	return nRet;
+}
+
+int WCSocketRUDP::WriteRudpData(const char *pcWriteBuf, const int nWriteSz, const char *pcDestIp, const unsigned short usDestPort)
+{
+	int nPackCnt, nPackWrSz,nPackModSz;
+
+	// 인자값 검사
+	WCTRACEM
+	(
+		if (!pcWriteBuf || nWriteSz<=0 || !pcDestIp || usDestPort<=0) {
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:WriteRudpData][%03d] !WriteBuf(%p) || WriteSz(%d)<0 || !Ip(%p) || Port(%d)<0\n", m_nFd, pcWriteBuf, nWriteSz, pcDestIp, usDestPort);
+			return -1;
+		}
+	);
+
+	// 송신 패킷프레임수 계산
+	nPackCnt = nWriteSz / RUDP_DATASZ + 1;
+	if(nPackCnt > 1) {
+		nPackWrSz = RUDP_DATASZ;
+		nPackModSz = nWriteSz % RUDP_DATASZ;
+		if(nPackModSz == 0) {
+			nPackCnt--;
+			nPackModSz = RUDP_DATASZ;
+		}
+	}
+	else if(nPackCnt==1) {
+		nPackWrSz = nWriteSz;
+		nPackModSz = nWriteSz;
+	}
+	else {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:WriteRudpData][%03d] (PCnt:%d) <= 0\n", m_nFd, nPackCnt);
+		return -1;
+	}
+
+	// Seq번호 계산, 중복되면 20 증가시킨다.
+	list<T_RUDP_PACK *>::iterator it_list;
+	unsigned short usSeq;
+	bool bSeqD;
+
+	m_usRudpAck++;
+	usSeq = 0;
+	
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpData][%03d] START (This1:%p)\n", m_nFd, this);
+	pthread_mutex_lock(&m_MutexRudp);
+
+	for(int i=0; i<100; i++) {
+		bSeqD = false;
+		for (it_list=m_listRudpS.begin();it_list!=m_listRudpS.end();it_list++) {
+			if ((*it_list) && strcmp((*it_list)->cIp,pcDestIp)==0 && (*it_list)->usPort==usDestPort && ntohs((*it_list)->tRudp.h.usSeq)==usSeq) {
+				usSeq += 20;
+				bSeqD = true;
+			}
+			if(bSeqD == true) 
+				break;
+		}
+		if(bSeqD==false)
+			break;
+	}
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpData][%03d] Ready (WrSz:%d)(PCnt:%d) (Seq:%d)(Ack:%d)\n", m_nFd, nWriteSz,nPackCnt,usSeq,m_usRudpAck);
+
+	// 패킷을 만들어서 저장하고 첫번째 패킷만 송신한다.
+	int nRet=-1;
+	for(int i=0; i<nPackCnt; i++)
+	{
+		T_RUDP_PACK *pPack = new T_RUDP_PACK;
+		uint32_t unChecksum;
+		memset(pPack,0x00,sizeof(T_RUDP_PACK));
+
+		WcXStrcpy(pPack->cIp, pcDestIp);
+		pPack->usPort = usDestPort;
+		pPack->nSendCnt = m_ncLimitSendCnt;	// timer 인터럽트 함수에서 삭제하기 위해 초기값은 송신제한횟수만큼 설정
+		pPack->tRudp.h.usSeq = htons(usSeq+i);
+		pPack->tRudp.h.usAck = htons(m_usRudpAck);
+		pPack->tRudp.h.ucFlag = P_RUDP_FLAG_PUSH;
+		// 마지막 패킷이면 남은 패킷만큼만 보낸다.
+		if(i==(nPackCnt-1))	{
+			pPack->tRudp.h.ucFlag = P_RUDP_FLAG_PUSHFIN;
+			nPackWrSz = nPackModSz;
+		}
+		pPack->tRudp.h.unDataLen = htonl(nPackWrSz);
+		unChecksum = RudpChecksum(&pcWriteBuf[i*RUDP_DATASZ], nPackWrSz);
+		pPack->tRudp.h.unCheckSum = htonl(unChecksum);
+		memcpy(pPack->tRudp.ucData, &pcWriteBuf[i*RUDP_DATASZ], nPackWrSz) ;
+
+		if(i==0)
+		{
+			if((nRet=VWrite((char *)&pPack->tRudp, ntohl(pPack->tRudp.h.unDataLen)+sizeof(T_RUDP_HEADER), pcDestIp, usDestPort)) == -1)	WcLogPrintf(WCLog::E_MODE_ERROR,"[SO:Wrd][%03d] Write(%s)(%d)(%s)\n", m_nFd, pcDestIp, usDestPort, (char *)strerror(errno));
+			pPack->nSendCnt = 1;
+			if( (pPack->tTimer = StartTimer(m_dwcAckTimeS,0,1)) == NULL) {
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:WriteRudpData][%03d] socktimer_start(%s)\n", m_nFd,(char *)strerror(errno));
+				WcXDelete(pPack);
+				pthread_mutex_unlock(&m_MutexRudp);
+				return -1;
+			}
+			WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpData][%03d] Write (Ret:%d) (Seq:%u)(Ack:%u)(Flag:%d) (Timer:%lu) (Ip:%s)(Port:%d)\n", m_nFd, nRet, ntohs(pPack->tRudp.h.usSeq), ntohs(pPack->tRudp.h.usAck), pPack->tRudp.h.ucFlag, pPack->tTimer, pcDestIp, usDestPort);
+		}
+		m_listRudpS.push_back(pPack); // 패킷리스트 추가
+	}
+	pthread_mutex_unlock(&m_MutexRudp);
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:WriteRudpData][%03d] END, ListRudpS (%d)\n", m_nFd, m_listRudpS.size());
+
+	return nRet;
+}
+
+int WCSocketRUDP::PacketRudp(char *pcData, const int nHeadFirstPos, const int nLenSz, const int nAddSz)
+{
+	T_RUDP_HEADER *pRudpH;
+	int nAllSz;
+	uint32_t unChecksum;
+
+	// 패킷 추출
+	nAllSz = Packet(pcData,5,4,13,WCSocket::E_PSB_BINARY);
+	if(nAllSz <= 0) {
+		WCTRACE(WCLog::E_MODE_WARN,"[SocketR:PacketRudp][%03d] AllSz(%d) <= 0\n", m_nFd, nAllSz);
+		return nAllSz;
+	}
+
+	pRudpH = (T_RUDP_HEADER *)pcData;
+	pRudpH->usSeq = ntohs(pRudpH->usSeq);
+	pRudpH->usAck = ntohs(pRudpH->usAck);
+	pRudpH->unDataLen = ntohl(pRudpH->unDataLen);
+	pRudpH->unCheckSum = ntohl(pRudpH->unCheckSum);
+	if ((unsigned int)nAllSz < pRudpH->unDataLen+sizeof(T_RUDP_HEADER) || pRudpH->unDataLen>(unsigned int)m_nRecvBuf) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudp][%03d] AllSz(%d) < Len(%d)+Header(%d) || nDataLen(%lu)>nRecvBufSz(%d)\n", m_nFd, nAllSz, pRudpH->unDataLen, sizeof(T_RUDP_HEADER), pRudpH->unDataLen,m_nRecvBuf);
+		InitValPack();
+		return -1;
+	}
+
+	// 1. checksum 체크
+	unChecksum = RudpChecksum(&pcData[sizeof(T_RUDP_HEADER)], (int)pRudpH->unDataLen);
+	if(unChecksum != pRudpH->unCheckSum) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudp][%03d] RudpChecksum(%lu)(%lu)\n", m_nFd,unChecksum,pRudpH->unCheckSum);
+		InitValPack();
+		return -1;
+	}
+	WCTRACE(WCLog::E_MODE_ALL, "[SocketR:PacketRudp][%03d] START (IP:%s)(Port:%5d) (Sz:%d)(Seq:%d)(Ack:%d)(Flag:%02x)(Len:%lu)(Sum:%lu) --- (%d)(%d)\n", m_nFd, m_cIpS, m_usPortS, nAllSz, pRudpH->usSeq, pRudpH->usAck, pRudpH->ucFlag, pRudpH->unDataLen, pRudpH->unCheckSum, m_listRudpR.size(),m_listRudpS.size());
+
+	pthread_mutex_lock(&m_MutexRudp);
+
+	// 1. Push (수신):
+	if(pRudpH->ucFlag == P_RUDP_FLAG_PUSH) {
+		nAllSz = PacketRudpPush(pRudpH, pcData);
+	}
+	// 2. ACK (송신):
+	else if(pRudpH->ucFlag == P_RUDP_FLAG_ACK) {
+		nAllSz = PacketRudpAck(pRudpH);
+	}
+	// 3. PUSH/FIN (수신):
+	else if(pRudpH->ucFlag == P_RUDP_FLAG_PUSHFIN) {
+		nAllSz = PacketRudpPushFin(pRudpH, pcData);
+		//nAllSz = PacketRudpUserCheck(pcData, nHeadFirstPos, nLenSz, nAddSz, nAllSz);
+	}
+	// 4. ACK/FIN (송신):
+	else if(pRudpH->ucFlag == P_RUDP_FLAG_ACKFIN) {
+		nAllSz = PacketRudpAckFin(pRudpH);
+	}
+	else {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudp][%03d] H-Etc (IP:%s)(Port:%5d)(Flag:%d)\n", m_nFd,m_cIpS,m_usPortS,pRudpH->ucFlag);
+	}
+
+	pthread_mutex_unlock(&m_MutexRudp);
+
+	if (nAllSz >= 0) 
+		pcData[nAllSz] = 0x00;
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudp][%03d] END (Sz:%d)\n", m_nFd,nAllSz);
+	return nAllSz;
+}
+
+int WCSocketRUDP::PacketRudpPush(T_RUDP_HEADER * pRudpH, char *pcData)
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+	T_RUDP_PACK *pPack;
+	int nPackRetSz;
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPush][%03d] START (IP:%s)(Port:%5d)\n", m_nFd,m_cIpS,m_usPortS);
+
+	// 1. 패킷리스트에서 현재 패킷이 존재하는가 검색해서 있으면 삭제한다.
+	for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++)
+	{	
+		// 주소,포트가 동일하고 
+		if ((*rit_list) && strcmp(m_cIpS,(*rit_list)->cIp)==0 && m_usPortS==(*rit_list)->usPort)
+		{
+			// 송신자Seq=Ack-1 이면 중복 패킷
+			if(pRudpH->usSeq==ntohs((*rit_list)->tRudp.h.usAck)-1) {
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpPush][%03d] PUSH - Duplicated (IP:%s)(Port:%5d)(ListSz:%d)(Seq:%lu)(Ack:%lu)\n", m_nFd,m_cIpS,m_usPortS, m_listRudpR.size(),ntohs((*rit_list)->tRudp.h.usSeq),ntohs((*rit_list)->tRudp.h.usAck));
+				WcXDelete(*rit_list);
+				m_listRudpR.remove(*rit_list);
+				break;
+			}
+			// 송신자Seq=리스트Ack이면 연속 패킷
+			else if (pRudpH->usSeq==ntohs((*rit_list)->tRudp.h.usAck)) {
+				DeleteTimer((*rit_list)->tTimer);
+				WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPush][%03d] PUSH - Continue (IP:%s)(Port:%5d)\n", m_nFd,m_cIpS,m_usPortS);
+				break;
+			}
+		}
+	}
+
+	// 2. ACK를 보낸다.
+	pPack = new T_RUDP_PACK;
+	if( (nPackRetSz=WriteRudpSignal(pPack, m_cIpS, m_usPortS, -1, pRudpH->usAck, pRudpH->usSeq+1, P_RUDP_FLAG_ACK)) == -1) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpPush][%03d] PUSH - WriteRudpSignal(%s) (IP:%s)(Port:%5d)\n", m_nFd,(char *)strerror(errno),m_cIpS,m_usPortS);
+		WcXDelete(pPack);
+		return -1;
+	}
+	memcpy(pPack->tRudp.ucData, &pcData[sizeof(T_RUDP_HEADER)], pRudpH->unDataLen) ;
+	pPack->tRudp.h.unDataLen = htonl(pRudpH->unDataLen); // 0바이트로 보낸후 다시 데이터 실제 크기를 저장해야 한다.
+
+	// 3. 타이머를 작동하고 패킷리스트에 추가한다.
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPush][%03d] TIMER_START (%d)(%p)\n", m_nFd, m_dwcAckTimeR, this);
+	if( (pPack->tTimer = StartTimer(m_dwcAckTimeR,0,1)) == NULL) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpPush][%03d] PUSH - socktimer_start(%s) (IP:%s)(Port:%5d)\n", m_nFd,(char *)strerror(errno),m_cIpS,m_usPortS);
+		WcXDelete(pPack);
+		return -1;
+	}
+	m_listRudpR.push_back(pPack);
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPush][%03d] END (IP:%s)(Port:%5d)\n", m_nFd,m_cIpS,m_usPortS);
+
+	return 0;
+}
+
+int WCSocketRUDP::PacketRudpPushFin(T_RUDP_HEADER * pRudpH, char *pcData)
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+	T_RUDP_PACK tPack, *pPack;
+	int nDataLen,nPackRetSz;
+	uint32_t unLen, unLen2;
+	map<unsigned short, T_RUDP_PACK * > mRudpR;
+	map<unsigned short, T_RUDP_PACK * >::iterator it_map;
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPushFin][%03d] START (IP:%s)(Port:%5d)\n", m_nFd,m_cIpS,m_usPortS);
+
+	// 1. 패킷리스트에서 주소,포트,Seq가 동일한 패킷을 다 검색해서 데이터를 조립한다.
+	for (rit_list=m_listRudpR.rbegin();rit_list!=m_listRudpR.rend();rit_list++)
+	{
+		// 주소,포트,Seq>=Ack 면 연속된 프레임
+		if((*rit_list) && strcmp(m_cIpS, (*rit_list)->cIp)==0 && m_usPortS==(*rit_list)->usPort && pRudpH->usSeq>=ntohs((*rit_list)->tRudp.h.usAck))
+		{
+			DeleteTimer((*rit_list)->tTimer);
+			mRudpR.insert(pair<unsigned short, T_RUDP_PACK * >(ntohs((*rit_list)->tRudp.h.usAck), *rit_list));
+			m_listRudpR.remove(*rit_list);
+			rit_list--;
+		}
+	}
+
+	// 2. ACKFIN를 보내고 mRudpR에 추가, 타이머는 작동할 필요 없다.
+	if( (nPackRetSz=WriteRudpSignal(&tPack, m_cIpS, m_usPortS, -1, pRudpH->usAck, pRudpH->usSeq+1, P_RUDP_FLAG_ACKFIN)) == -1) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpPushFin][%03d] PUSHFIN - WriteRudpSignal(%s) (IP:%s)(Port:%5d)\n", m_nFd,(char *)strerror(errno),m_cIpS,m_usPortS);
+		//WcXDelete(pPack);
+		return -1;
+	}
+	//memcpy(pPack->tRudp.ucData, &pcData[sizeof(T_RUDP_HEADER)], pRudpH->unDataLen) ;
+	//pPack->tRudp.h.unDataLen = htonl(pRudpH->unDataLen); // 0바이트로 보낸후 다시 데이터 실제 크기를 저장해야 한다.
+
+	// 3. 데이터 재조립
+	nDataLen = 0;
+	unLen2 = pRudpH->unDataLen;
+	if(mRudpR.size() > 0) 
+	{
+		for (it_map=mRudpR.begin();it_map!=mRudpR.end();it_map++)
+		{
+			pPack = it_map->second;
+			unLen = ntohl(pPack->tRudp.h.unDataLen);
+			memcpy(&pcData[nDataLen], pPack->tRudp.ucData, unLen);
+			nDataLen += unLen;
+			WcXDelete(pPack);
+		}
+		//pcData[nDataLen]=0x00;
+	}
+
+	memcpy(&pcData[nDataLen], &pcData[sizeof(T_RUDP_HEADER)], unLen2);
+	nDataLen += unLen2;
+	pcData[nDataLen]=0x00;
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpPushFin][%03d] END (IP:%s)(Port:%5d)(DLen:%d)(ListSz:%d)\n", m_nFd, m_cIpS, m_usPortS, nDataLen, m_listRudpR.size());
+
+	return nDataLen;
+}
+
+int WCSocketRUDP::PacketRudpAck(T_RUDP_HEADER * pRudpH)
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+	int nRet;
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAck][%03d] START (IP:%s)(Port:%5d)\n", m_nFd,m_cIpS,m_usPortS);
+
+	// 1. 송신패킷리스트에서 주소,포트,Seq+1=Ack가 동일한 패킷을 검색해서 삭제하고 다음 패킷을 보낸다.
+	for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++)
+	{
+		if((*rit_list) && strcmp((*rit_list)->cIp, m_cIpS)==0 && (*rit_list)->usPort==m_usPortS)
+		{
+			if(ntohs((*rit_list)->tRudp.h.usSeq)+1==pRudpH->usAck)
+			{	// 해당 패킷은 삭제하고
+				WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAck][%03d] List delete (Ack:%d) (IP:%s)(Port:%5d)\n", m_nFd,pRudpH->usAck,m_cIpS,m_usPortS);
+				DeleteTimer((*rit_list)->tTimer);
+				WcXDelete(*rit_list);
+				m_listRudpS.remove(*rit_list);
+				rit_list--;
+				break;
+			}
+			else if(ntohs((*rit_list)->tRudp.h.usSeq)==pRudpH->usAck)
+			{	// 다음 패킷 송신
+				if( (nRet=VWrite((char *)&(*rit_list)->tRudp, ntohl((*rit_list)->tRudp.h.unDataLen)+sizeof(T_RUDP_HEADER), (*rit_list)->cIp, (*rit_list)->usPort)) == -1) {
+					WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpAck][%03d] ACK - Write(%s)(%d)(%s) (IP:%s)(Port:%5d)\n", m_nFd,(*rit_list)->cIp, (*rit_list)->usPort, (char *)strerror(errno),m_cIpS, m_usPortS);
+				}
+				(*rit_list)->nSendCnt=1;
+				WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAck][%03d] TIMER_START (%d)(%p)\n", m_nFd, m_dwcAckTimeS, this);
+				if( ((*rit_list)->tTimer = StartTimer(m_dwcAckTimeS,0,1)) == NULL) {
+					WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpAck][%03d] ACK - socktimer_start(%s) (IP:%s)(Port:%5d\n", m_nFd,(char *)strerror(errno),m_cIpS, m_usPortS);
+					WcXDelete(*rit_list);
+					return -1;
+				}
+				WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAck][%03d] Write (Ret:%d) (Seq:%u)(Ack:%u) (Timer:%lu) (Ip:%s)(Port:%d)\n", m_nFd, nRet, ntohs((*rit_list)->tRudp.h.usSeq), ntohs((*rit_list)->tRudp.h.usAck), (*rit_list)->tTimer, (*rit_list)->cIp, (*rit_list)->usPort);
+			}
+		}
+	}
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAck][%03d] END, ListRudpS(%d)\n", m_nFd,m_listRudpS.size());
+
+	return 0;
+}
+
+int WCSocketRUDP::PacketRudpAckFin(T_RUDP_HEADER * pRudpH)
+{
+	list<T_RUDP_PACK *>::reverse_iterator rit_list;
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAckFin][%03d] START (ListRudpS:%d)\n", m_nFd,m_listRudpS.size());
+
+	// 1. 송신패킷리스트에서 주소,포트,Seq+1=Ack가 동일한 패킷을 검색해서 삭제
+	for (rit_list=m_listRudpS.rbegin();rit_list!=m_listRudpS.rend();rit_list++)
+	{
+		if((*rit_list) && strcmp((*rit_list)->cIp, m_cIpS)==0 && (*rit_list)->usPort==m_usPortS && ntohs((*rit_list)->tRudp.h.usSeq)+1==pRudpH->usAck)
+		{
+			WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAckFin][%03d] List delete (Ip:%s)(Port:%d)(Ack:%d)\n", m_nFd,m_cIpS,m_usPortS,pRudpH->usAck);
+			DeleteTimer((*rit_list)->tTimer);
+			WcXDelete(*rit_list);
+			m_listRudpS.remove(*rit_list);
+			rit_list--;
+			break;
+		}
+	}
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketR:PacketRudpAckFin][%03d] END, ListRudpS(%d)\n", m_nFd,m_listRudpS.size());
+
+	return 0;
+}
+
+int WCSocketRUDP::PacketRudpUserCheck(char *pcData, const int nHeadFirstPos, const int nLenSz, const int nAddSz, const int nDataCnt)
+{
+	unsigned short usDataSz;
+	int  nDataSz, nAllSz, nHeadLastPos;
+	char cTemp[50];
+
+	// 헤더부
+	nHeadLastPos = nHeadFirstPos + nLenSz;
+
+	// 수신데이터가 헤더부 크기보다 작으면, 아직 패킷이 다 수신되지 않았으므로 0을 리턴. 
+	if(nDataCnt < nHeadLastPos) {
+		//WcLogPrintf(WCLog::E_MODE_WARN,"[SocketR:PacketRudpUserCheck][%03d] DataCnt(%d) < HeadLastPos(%d)\n", m_nFd, m_nDataCnt, nHeadLastPos);
+		return 0;
+	}
+	// 크기 체크 
+	memcpy(cTemp, &pcData[nHeadFirstPos], nLenSz);
+	cTemp[nLenSz] = 0x00;
+	if(nLenSz == 2) {
+		memcpy(&usDataSz, cTemp, nLenSz);
+		usDataSz = ntohs(usDataSz);
+		nDataSz = usDataSz;
+	}
+	else if(nLenSz == 4) {
+		memcpy(&nDataSz, cTemp, nLenSz);
+		nDataSz = ntohl(nDataSz);
+	}
+	else if(nLenSz == 0) {
+		nDataSz = 0;
+	}
+	else {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpUserCheck][%03d] nLenSz(%d))\n", m_nFd, nLenSz);
+		return -1;
+	}
+
+	// 패킷 하나가 수신버퍼보다 클수는 없다.
+	if(nDataSz>nDataCnt) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpUserCheck][%03d] PackSize(%d)>nDataCnt(%d)\n", m_nFd, nDataSz, nDataCnt);
+		InitValPack();
+		nAllSz = -1;
+	}
+	else {
+		nAllSz = nDataSz + nAddSz;
+		// 전체 한패킷 사이즈보다 DataCnt가 적다는 말은 덜 수신했다는 말
+		if(nAllSz > nDataCnt) {
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketR:PacketRudpUserCheck][%03d] PackAllSz(%d)>DataCnt(%d)\n", m_nFd, nAllSz, m_nDataCnt);
+			nAllSz = 0;
+		}
+	}
+
+	return nAllSz;
+}
+
+uint32_t WCSocketRUDP::RudpChecksum(const char *pcData, const int nDataSz)
+{
+	int nTempCnt,nTempMod,nTemIx;
+	uint32_t unTemp, unTempChecksum;
+
+	nTempCnt = nTempMod = nTemIx = 0;
+	unTemp = unTempChecksum = 0;
+	nTempCnt = nDataSz / 4;
+	nTempMod = nDataSz % 4;
+
+	for(int k=0; k<nTempCnt; k++) {
+		unTemp = 0;
+		memcpy(&unTemp, &pcData[nTemIx], 4);
+		unTempChecksum += unTemp;
+		nTemIx += 4;
+	}
+	if(nTempMod > 0) {
+		unTemp = 0x00;
+		memcpy(&unTemp, &pcData[nTemIx], nTempMod);
+		unTempChecksum += unTemp;
+	}
+
+	return unTempChecksum;
+}

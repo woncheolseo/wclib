@@ -1,0 +1,61 @@
+.SUFFIXES = .cpp .o
+
+#SRCS = wc_group.cpp wc_ipc.cpp wc_thread.cpp wc_threadgroup.cpp wc_threadgroupth.cpp wc_socket.cpp wc_socketrudp.cpp wc_socketssl.cpp wc_socketgroup.cpp wc_struct.cpp wc_linkedlist.cpp wc_stack.cpp wc_db.cpp wc_dbgroup.cpp wc_mysql.cpp wc_oracle.cpp
+#SRCS = wc_lib.cpp wi_interface.cpp wi_timer.cpp wi_member.cpp wc_object.cpp wc_test.cpp wc_log.cpp wc_util.cpp wc_cfg.cpp wc_cryptograph.cpp wc_md5.cpp wc_timer.cpp wc_db.cpp wc_mysql.cpp wc_oracle.cpp wc_group.cpp wc_manager.cpp wc_manager_db.cpp wc_proc.cpp wc_thread.cpp wc_manager_thread.cpp wc_ipc.cpp wc_socket.cpp wc_manager_socket.cpp wc_struct.cpp wc_linkedlist.cpp
+SRCS = $(wildcard *.cpp)
+SRCH = $(SRCS:.cpp=.h)
+OBJS = $(SRCS:.cpp=.o)
+INCH = wc_protocol.h
+
+INC = -I$(MYSQL_INC) -I$(ORACLE_INC)
+#CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -c -D_REENTRANT -Wno-write-strings -Wno-ignored-qualifiers
+CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -c -D_REENTRANT
+CFLAGD = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -c -g -D_REENTRANT -D_DEBUG -pg
+DIR_PLIB = $(PROJECT_HOME)/aprogram/lib/
+DIR_PINC = $(PROJECT_HOME)/aprogram/include/
+
+TARGETS = libso
+TARGETSO = libwc.so.1.0.1
+TARGETSL = $(TARGETSO:.so.1.0.1=.so)
+
+#공유LIB
+$(TARGETS) : $(OBJS)
+	$(CXX) -shared -o $(TARGETSO) $^
+	rm -rf $(DIR_PLIB)$(TARGETSL)
+	mv $(TARGETSO) $(DIR_PLIB)
+	ln -s $(DIR_PLIB)$(TARGETSO) $(DIR_PLIB)$(TARGETSL)
+	cp $(SRCH) $(DIR_PINC)
+	cp $(INCH) $(DIR_PINC)
+
+.cpp.o :
+	$(CXX) $< $(INC) $(CFLAGS)
+
+#정적LIB
+$(TARGETA) :
+	$(CXX) $(SRCS) $(INC) -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -O2 -c -g -D_DEBUG
+
+#삭제
+clean :
+	rm -rf *.o *.bak *.log *.cache
+
+#삭제-라이브러리
+cleanlib :
+	rm -rf $(DIR_PLIB)$(TARGETSO) $(DIR_PLIB)$(TARGETSL)
+	cd $(DIR_PINC) && rm -f $(SRCH) $(INCH)
+
+#새로
+new :
+	$(MAKE) clean
+	$(MAKE) cleanlib
+	$(MAKE) $(TARGETS)
+
+#디버그
+debug :
+	$(CXX) $(SRCS) $(INC) $(CFLAGD)
+	$(CXX) -pg -shared -o $(TARGETSO) $(OBJS)
+	rm -rf $(DIR_PLIB)$(TARGETSL)
+	mv $(TARGETSO) $(DIR_PLIB)
+	ln -s $(DIR_PLIB)$(TARGETSO) $(DIR_PLIB)$(TARGETSL)
+	cp $(SRCH) $(DIR_PINC)
+	cp $(INCH) $(DIR_PINC)
+

@@ -1,0 +1,62 @@
+﻿.SUFFIXES = .cpp .o
+CC=g++
+
+SRCS = test.cpp
+SRCP = $(PROJECT_HOME)/azlib/azlib_wc/work/*.cpp test.cpp
+OBJS = $(SRCS:.cpp=.o)
+BACK = *.bak
+
+INC =
+#INC = -I$(MYSQL_INC) -I$(ORACLE_INC) -I$(PROJECT_HOME)/aprogram/include -I/usr/include/libxml2 -I/opt/tcmalloc/include/google -I/opt/libmemcached/include
+
+CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -O2 -c
+CFLAGD = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -c -g -D_DEBUG
+CFLAGP = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -O2 -c -pg
+CFLAGV = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -c -g -D_DEBUG
+
+LFLAGS = 
+#LFLAGS = -lwc -lacti -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -liconv -lxml2 -ltcmalloc -lmemcached -lgmock
+LFLAGD = 
+#LFLAGD = -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -lgmock
+LFLAGP = -pg -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -lstdc++ -lgmock
+LFLAGV = -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -liconv -lstdc++ -lmemcached -lgmock
+
+LPATHS  = 
+#LPATHS  = -L$(MYSQL_LIB) -L$(ORACLE_LIB) -L$(PROJECT_HOME)/aprogram/lib -L/opt/tcmalloc/lib -L/opt/libmemcached/lib
+LPATHD  = 
+#LPATHD  = -L$(MYSQL_LIB) -L$(ORACLE_LIB)
+LPATHP  = -L$(MYSQL_LIB) -L$(ORACLE_LIB)
+LPATHV  = -L$(MYSQL_LIB) -L$(ORACLE_LIB)
+
+TARGET = $(SRCS:.cpp=)
+
+$(TARGET) : $(OBJS)
+	$(CC) -o $(TARGET) $(OBJS) $(LPATHS) $(LFLAGS)
+
+.cpp.o :
+	$(CC) $< $(INC) $(CFLAGS)
+
+#모두 삭제
+clean :
+	rm -f *.o $(TARGET) $(BACK) *.out *.txt *.log core *.i *.ii *.s
+
+#모두 새로
+new :
+		clear
+		$(MAKE) clean
+		$(MAKE)
+
+#디버깅
+debug :
+	$(CC) $(SRCS) $(INC) $(CFLAGD)
+	$(CC) -o $(TARGET) *.o $(LPATHD) $(LFLAGD)
+
+#프로파일링
+prof :
+	$(CC) $(SRCP) $(INC) $(CFLAGP)
+	$(CC) -o $(TARGET) *.o $(LPATHP) $(LFLAGP)
+
+#valgrind
+valg :
+	$(CC) $(SRCP) $(INC) $(CFLAGV)
+	$(CC) -o $(TARGET) *.o $(LPATHV) $(LFLAGV)

@@ -1,0 +1,353 @@
+/** 
+	@file wc_manager_threadth.cpp
+   	@brief WCManagerThreadTH 소스
+*/
+
+#include "wc_lib.h"
+
+/**
+@brief IPC 쓰레드
+
+WCThread간 통신을 위해서 실행되는  쓰레드
+@param pArg WCThread객체
+@return 의미없음
+*/
+void * WThDispatchIPC(void *pArg)
+{
+	if (!pArg) {
+		fprintf(stderr,"[ThT:WThDispatchIPC] pArg is NULL\n");
+		return NULL;
+	}
+	WCManagerThreadTH *pGroup;
+	pGroup = (WCManagerThreadTH *)pArg;
+	pGroup->ThreadIpc();
+	pGroup->SetIPCTid(0);
+	WCTRACE(WCLog::E_MODE_ALL,"[WThDispatchIPC] pthread_exit\n");
+
+	return NULL;
+}
+
+WCManagerThreadTH::WCManagerThreadTH() : WCThreadGroup(), m_pthreadIPC(0), m_nRecvIx(0), m_nProcIx(0), m_nDataCnt(0), m_bLoop(true)
+{
+	pthread_mutex_init(&m_MutexS,NULL);
+	pthread_mutex_init(&m_MutexR,NULL);
+	pthread_mutex_init(&m_MutexD,NULL);
+	pthread_cond_init(&m_CondR,NULL);
+	pthread_cond_init(&m_CondD,NULL);
+	StartIPC();
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:ThT] 1 (This:%p)\n",this);
+}
+
+WCManagerThreadTH::WCManagerThreadTH(const int nMax) : WCThreadGroup(nMax), m_pthreadIPC(0), m_nRecvIx(0), m_nProcIx(0), m_nDataCnt(0), m_bLoop(true)
+{
+	pthread_mutex_init(&m_MutexS,NULL);
+	pthread_mutex_init(&m_MutexR,NULL);
+	pthread_mutex_init(&m_MutexD,NULL);
+	pthread_cond_init(&m_CondR,NULL);
+	pthread_cond_init(&m_CondD,NULL);
+	StartIPC();
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:ThT] 2 (This:%p)\n",this);
+}
+
+WCManagerThreadTH::~WCManagerThreadTH()
+{
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:~ThT] 1 (This:%p)\n",this);
+
+	StopIPC();
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:~ThT] 2 (This:%p)\n",this);
+
+	pthread_mutex_destroy(&m_MutexS);
+	pthread_mutex_destroy(&m_MutexR);
+	pthread_mutex_destroy(&m_MutexD);
+	pthread_cond_destroy(&m_CondR);
+	pthread_cond_destroy(&m_CondD);
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:~ThT] 3 (This:%p)\n",this);
+}
+
+inline void WCManagerThreadTH::InitValPack()
+{
+	m_nRecvIx = m_nProcIx = m_nDataCnt = 0;
+}
+
+void WCManagerThreadTH::ThreadIpc()
+{
+	int nPackSz,nRet;
+	char cData[m_ncIpcBufSz];
+	WCThread *pThread=NULL;
+	map<string, WCObject *>::iterator it_map;
+	T_IPC_HEADER *pHeader=NULL;
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:ThreadIpc] Start\n");
+
+	while(m_bLoop)
+	{
+		pthread_mutex_lock(&m_MutexR);
+		pthread_cond_wait(&m_CondR, &m_MutexR);
+		for(int i=0; i<100; i++) 
+		{
+			nPackSz = PacketIpc(cData, 0, sizeof(short), sizeof(T_IPC_HEADER));
+			if(nPackSz == -1) {
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:ThreadIpc][%p] Pack<=0\n",  this);
+				InitValPack();
+				break;
+			}
+			else if(nPackSz == 0) {	// 패킷 미완성
+				break;
+			}
+			cData[nPackSz] = 0x00;
+
+			pHeader = (T_IPC_HEADER *)cData;
+			it_map = m_mMember.find((char *)pHeader->ucObject);
+			if(it_map != m_mMember.end()) {
+				pThread = (WCThread *)it_map->second;
+			}
+			if(pThread) {
+				// IPC패킷 처리: 헤더부는 떼고 전달한다.
+				nRet = pThread->VEvent(&cData[sizeof(T_IPC_HEADER)], nPackSz-sizeof(T_IPC_HEADER));
+			}
+		}
+		pthread_cond_signal(&m_CondD);
+		pthread_mutex_unlock(&m_MutexR);
+	}
+
+	WCTRACE(WCLog::E_MODE_WARN,"[ThT:ThreadIpc] End\n");
+}
+
+int WCManagerThreadTH::StartIPC()
+{
+	//int nRet;
+	//int iThreadStackSize = 2048000; 
+
+	// IPC 쓰레드 생성
+	// nRet = pthread_attr_init(&m_pthreattr);
+	// WCTRACE(WCLog::E_MODE_ALL,"[ThT:Start] pthread_attr_init (%d)\n", nRet);
+	// nRet = pthread_attr_setdetachstate(&m_pthreattr, PTHREAD_CREATE_DETACHED);
+	// WCTRACE(WCLog::E_MODE_ALL,"[ThT:Start] pthread_attr_setdetachstate (%d)\n", nRet);
+	// nRet = pthread_attr_setstacksize(&m_pthreattr, iThreadStackSize);
+	// WCTRACE(WCLog::E_MODE_ALL,"[ThT:Start] pthread_attr_setstacksize (%d)\n", nRet);
+
+	for (int i=0; i<10; i++) 
+	{
+		if (pthread_create(&m_pthreadIPC, NULL, WThDispatchIPC, this) != 0) {
+		//if (pthread_create(&m_pthreadIPC, &m_pthreattr, WThDispatchIPC, this) != 0) {
+			WcLogPrintf(WCLog::E_MODE_WARN,"[ThT:StartIPC] pthread_create (IPC)(This:%p)(i:%d)(Er:%d)(Er:%s)\n", this,i,errno,(char *)strerror(errno));
+			sleep(1);
+			if(i==9) {
+		    	WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:StartIPC] pthread_create (IPC)(This:%p)(i:%d) End\n", this,i);
+		    	return -1;
+		    }
+		}
+		else {
+			if (pthread_detach(m_pthreadIPC) != 0) 
+				WcLogPrintf(WCLog::E_MODE_WARN,"[ThT:StartIPC] pthread_detach (IPC)(This:%p)(Th:%lu)(i:%d)(Er:%d)(Er:%s)\n", this,m_pthreadIPC,i,errno,(char *)strerror(errno));
+			else 
+				WCTRACE(WCLog::E_MODE_ALL,"[ThT:StartIPC] pthread_detach (IPC)(This:%p)(Th:%lu)\n", this,m_pthreadIPC);
+			break;
+		}
+	}
+
+	return 0;
+}
+
+int WCManagerThreadTH::StopIPC()
+{
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:StopIPC] 1 (IPC)(This:%p)(Th:%lu)\n", this,m_pthreadIPC);
+
+	m_bLoop=false;
+	pthread_cond_signal(&m_CondR);			// IPC 쓰레드 종료 신호 날림
+	sleep(1);
+
+	WCTRACE(WCLog::E_MODE_ALL,"[ThT:StopIPC] 2 (IPC)(This:%p)(Th:%lu)\n", this,m_pthreadIPC);
+
+	return 0;
+}
+
+int WCManagerThreadTH::WriteIpc(const char *pcData, const int nWriteSz, char *pcObjName)
+{
+	T_IPC_HEADER tPack;
+	int nEmptySz,nAllSz,nFirstSz,nSecondSz,nTempDataCnt;
+
+	// 인자값 검사
+	WCTRACEM 
+	(
+		if (!pcData || nWriteSz<=0) {
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:WriteIpc][%p][%s] !pcData(%p) || nWriteSz(%d)<=50\n", this,pcObjName,pcData,nWriteSz);
+			return -1;
+		}
+	);
+
+	pthread_mutex_lock(&m_MutexS);
+
+	memset(&tPack,0x00,sizeof(tPack));
+	tPack.nLen = nWriteSz; //htons(usWriteSz);//tPack.usLen = usWriteSz; //htons(usWriteSz);
+	//tPack.ucType=0;
+	//tPack.ucReserve1=0;
+	strncpy((char *)tPack.ucObject,pcObjName,sizeof(tPack.ucObject)-1);
+
+	nAllSz = nWriteSz + (int)sizeof(tPack);
+	//m_nDataCnt += nAllSz;
+	nTempDataCnt = m_nDataCnt+nAllSz;
+
+	// 패킷 처리가 안되면 처리되게 한다.
+	for(int i=0; i<10; i++)
+	{
+		if (nTempDataCnt > m_ncIpcBufSz) {
+			pthread_mutex_lock(&m_MutexD);
+			pthread_cond_signal(&m_CondR);
+			WcCondTimedWait(&m_CondD,&m_MutexD,2);
+			pthread_mutex_unlock(&m_MutexD);
+			nTempDataCnt = m_nDataCnt+nAllSz;
+			if(i==9)
+				WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:WriteIpc] nTempDataCnt > m_ncIpcBufSz (i:%d)(AllSz:%d)(DataCnt:%d)\n", i,nAllSz,m_nDataCnt);
+		}
+		else
+			break;
+	}
+	nEmptySz = m_ncIpcBufSz - m_nRecvIx;
+
+	if(nAllSz > nEmptySz)
+	{
+		if(nEmptySz < (int)sizeof(tPack)) {
+			char cTemp[sizeof(tPack)+1];
+			memcpy(cTemp,&tPack,sizeof(tPack));
+			cTemp[sizeof(tPack)]=0x00;
+			nFirstSz = (int)sizeof(tPack) - nEmptySz;
+			nSecondSz = nFirstSz+nWriteSz;
+			memcpy(&m_cIpcBuf[m_nRecvIx], &cTemp[0], nEmptySz);
+			memcpy(&m_cIpcBuf[0], &cTemp[nEmptySz], nFirstSz);
+			memcpy(&m_cIpcBuf[nFirstSz], pcData, nWriteSz);
+		}
+		else {
+			nFirstSz = nEmptySz - (int)sizeof(tPack);
+			nSecondSz = nWriteSz - nFirstSz;
+			memcpy(&m_cIpcBuf[m_nRecvIx], &tPack, sizeof(tPack));
+			memcpy(&m_cIpcBuf[m_nRecvIx+sizeof(tPack)], pcData, nFirstSz);
+			memcpy(&m_cIpcBuf[0], &pcData[nFirstSz], nSecondSz);
+		}
+		m_nRecvIx = nSecondSz;
+	}
+	else
+	{
+		memcpy(&m_cIpcBuf[m_nRecvIx], &tPack, sizeof(tPack));
+		//WcLogPrintf(WCLog::E_MODE_ALL,"[ThT:WriteIpc] 111 (this:%p) (Sz:%d)(Cnt:%d)(Rix:%d)(Pix:%d)(Pack:%d)(Buf:%d)(Buf:%p)(Data:%p)(Wsz:%d)\n",this,nAllSz,m_nDataCnt,m_nRecvIx,m_nProcIx,sizeof(tPack),sizeof(m_cIpcBuf),m_cIpcBuf,pcData,nWriteSz);
+		memcpy(&m_cIpcBuf[m_nRecvIx+sizeof(tPack)], pcData, nWriteSz);
+		//WcLogPrintf(WCLog::E_MODE_ALL,"[ThT:WriteIpc] 222 (this:%p)\n",this);
+		m_nRecvIx += (int)sizeof(tPack) + nWriteSz;
+	}
+	m_nDataCnt += nAllSz;
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[ThT:WriteIpc] (Sz:%d)(Cnt:%d)(Rix:%d)(Pix:%d)\n", nAllSz,m_nDataCnt,m_nRecvIx,m_nProcIx);
+
+	pthread_cond_signal(&m_CondR);
+	pthread_mutex_unlock(&m_MutexS);
+
+	return nAllSz;
+}
+
+int WCManagerThreadTH::PacketIpc(char *pcData, const int nHeadFirstPos, const int nLenSz, const int nAddSz)
+{
+	unsigned short usDataSz;
+	int  nTempIx, nTempSzF, nTempSzL, nDataSz, nBufEmptySz, nFirstSz, nAllSz, nHeadLastPos;
+	char cTemp[50];
+
+	// 인자값 검사
+	WCTRACEM 
+	(
+		if (!pcData || nHeadFirstPos>30 || nLenSz>16) {
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:PacketIpc][%p] !pcData(%p) || HeadFirstPos(%d)>50 || LenSz(%d)>32\n", this,pcData,nHeadFirstPos,nLenSz);
+			return -1;
+		}
+	);
+
+	nBufEmptySz = m_ncIpcBufSz - m_nProcIx;
+	nTempSzF = m_nProcIx+nHeadFirstPos;
+	nTempSzL = nBufEmptySz-nHeadFirstPos;
+
+	// IPC데이터가 LenSz보다 작으면 패킷미완성(0 리턴)
+	nHeadLastPos = nHeadFirstPos + nLenSz;
+	if(m_nDataCnt < nLenSz) {
+		//WcLogPrintf(WCLog::E_MODE_WARN,"[ThT:PacketIpc][%p] DataCnt(%d) < HeadLastPos(%d)\n", this, m_nDataCnt, nHeadLastPos);
+		return 0;
+	}
+
+	// IPC버퍼의 남은 자리수를 고려하여 패킷 크기를 추출
+	if(nLenSz==0) {
+		cTemp[0] = 0x00;
+	}
+	else if(nBufEmptySz>nHeadFirstPos && nBufEmptySz<nHeadLastPos) {
+		memcpy(cTemp, &m_cIpcBuf[nTempSzF], nTempSzL);
+		memcpy(&cTemp[nTempSzL], m_cIpcBuf, nHeadLastPos-nBufEmptySz);
+	}
+	else {
+		nTempIx = nTempSzF;
+		if(nTempIx >= m_ncIpcBufSz) {
+			nTempIx = nTempIx - m_ncIpcBufSz;
+		}
+		memcpy(cTemp, &m_cIpcBuf[nTempIx], nLenSz);
+	}
+	cTemp[nLenSz] = 0x00;
+
+	if(nLenSz == 2) {
+		memcpy(&usDataSz, cTemp, nLenSz);
+		//usDataSz = ntohs(usDataSz); IPC는 내부에서만 통신하기 때문에 엔디안 변환을 해주지 않는다.
+		nDataSz = usDataSz;
+	}
+	else if(nLenSz == 4) {
+		memcpy(&nDataSz, cTemp, nLenSz);
+		//nDataSz = ntohl(nDataSz);
+	}
+	else if(nLenSz == 0) {
+		nDataSz = 0;
+	}
+	else {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:PacketIpc][%p] LenSz(%d))\n", this,nLenSz);
+		return -1;
+	}
+
+	// 패킷 추출
+	nAllSz = nDataSz + nAddSz;
+	if (nAllSz == 0)
+		nAllSz = m_nDataCnt;
+	if (nAllSz>m_ncIpcBufSz)
+	{  // 한 패킷이 최대 크기보다 클 수 없다.
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:PacketIpc][%p] AllSz(%d)>m_ncIpcBufSz(%d) // (Cnt:%d)(Rix:%d)(Pix:%d)\n", this,nAllSz,m_ncIpcBufSz, m_nDataCnt,m_nRecvIx,m_nProcIx);
+		InitValPack();
+		nAllSz = -1;
+	}
+	else if (nAllSz > m_nDataCnt)
+	{	// 한 패킷이 수신된 DataCnt보다 크다면 패킷미완성
+		WcLogPrintf(WCLog::E_MODE_WARN,"[ThT:PacketIpc][%p] PackAllSz(%d)>DataCnt(%d)\n", this,nAllSz,m_nDataCnt);
+		return 0;
+	}
+	else
+	{
+		// 데이터 추출
+		nBufEmptySz = m_ncIpcBufSz - m_nProcIx;
+		if(nBufEmptySz < nAllSz) {
+			nFirstSz = nAllSz-nBufEmptySz;
+			memcpy(pcData, &m_cIpcBuf[m_nProcIx], nBufEmptySz);
+			memcpy(&pcData[nBufEmptySz], &m_cIpcBuf[0], nFirstSz);
+			m_nProcIx = nFirstSz;
+		}
+		else if(nBufEmptySz == nAllSz) {
+			memcpy(pcData, &m_cIpcBuf[m_nProcIx], nAllSz);
+			m_nProcIx = 0;
+		}	
+		else {
+			memcpy(pcData, &m_cIpcBuf[m_nProcIx], nAllSz);
+			m_nProcIx += nAllSz;
+		}
+		m_nDataCnt -= nAllSz;
+		if(m_nDataCnt<0 || m_nProcIx>m_ncIpcBufSz-1) 	{
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[ThT:PacketIpc][%p] DataCnt(%d)<0 || ProcIx(%d)>IpcBufSz(%d)-1\n", this,m_nDataCnt,m_nProcIx,m_ncIpcBufSz);
+			nAllSz = -1;
+			InitValPack();
+		}
+	}
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[ThT:PacketIpc] (Sz:%d)(Cnt:%d)(Rix:%d)(Pix:%d)\n", nAllSz,m_nDataCnt,m_nRecvIx,m_nProcIx);
+
+	return nAllSz;
+}
+
+void WCManagerThreadTH::SetIPCTid(int nFlag)
+{
+	m_pthreadIPC = nFlag;
+}

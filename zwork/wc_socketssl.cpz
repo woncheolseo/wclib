@@ -1,0 +1,508 @@
+/**   
+	@file wc_socketssl.cpp
+   	@brief WCSocketSSL 소스
+*/
+
+#include "wc_lib.h"
+
+//BIO * g_errBIO;			// 화면에 표시 하기 위한 파일 BIO생성	
+
+void  HandshakeCallback(const SSL *s, int where, int ret);
+
+WCSocketSSL::WCSocketSSL() : WCSocket(), m_pMeth(NULL), m_pCtx(NULL), m_pSSL(NULL)
+{
+	//InitLibrary(); 메인함수에서 한번만 호출한다.
+	InitObject();
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketS:SocketS] (111) (This:%p)(Fd:%d)\n", this,m_nFd);
+}
+
+WCSocketSSL::WCSocketSSL(const int nSockMode, const char *pcIp, const unsigned short usPort, const unsigned short usSockDomain, const int nSockType, const int nSockProtocol, const int nFd) : WCSocket(nSockMode,pcIp,usPort,usSockDomain,nSockType,nSockProtocol,nFd), m_pMeth(NULL), m_pCtx(NULL), m_pSSL(NULL)
+{
+	//InitLibrary(); 메인함수에서 한번만 호출한다.
+	InitObject();
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketS:SocketS] (222) (This:%p)(Fd:%d)\n", this,m_nFd);
+}
+
+WCSocketSSL::~WCSocketSSL()
+{
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketS:~SocketS] (This:%p)(Fd:%d)\n", this,m_nFd);
+}
+
+void WCSocketSSL::InitLibrary()
+{
+	// 라이브러리 초기 
+	SSL_library_init();
+    // 모든 에러 스트링 로드
+    SSL_load_error_strings();
+    // 모든 알고리즘 로드
+    SSLeay_add_ssl_algorithms();
+    // BIO 에러 스트링 로드
+    ERR_load_BIO_strings();
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketS:InitLibrary]\n");
+}
+
+int WCSocketSSL::InitObject()
+{
+    // SSL 버전3 프로토콜 사용
+    //m_pMeth = TLSv1_server_method(); 
+    m_pMeth = const_cast<SSL_METHOD*>(SSLv23_server_method());
+
+    // SSL 컨텍스트 생성
+    if (m_pMeth) {
+	    m_pCtx = SSL_CTX_new (m_pMeth);
+	    if (!m_pCtx) {
+	        ERR_print_errors_fp(stderr);
+	        return -1;
+	    }
+	}
+
+	// 클라이언트 인증서 요청
+	SSL_CTX_set_verify(m_pCtx, SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE, VerifyCallback);
+
+   // SSL 핸드쉐이크 메시지교환 과정을 알려주는 콜벡함수
+    SSL_CTX_set_info_callback(m_pCtx,HandshakeCallback);
+
+	WCTRACE(WCLog::E_MODE_ALL,"[SocketS:InitObject] (Meth:%p)(Ctx:%p)\n", m_pMeth,m_pCtx);
+
+	return 0;
+}
+
+int WCSocketSSL::VerifyCallback(int nPreVerifyOk, X509_STORE_CTX *pCtx)
+{
+    T_VERIDATA *ptVeriData;
+    X509 *pErrCert;
+    SSL *ptSsl;
+    int nErr, nDepth;
+    int nVeriDataIx=0;
+	char cBuf[256];
+
+    pErrCert = X509_STORE_CTX_get_current_cert(pCtx);
+    nErr = X509_STORE_CTX_get_error(pCtx);
+    nDepth = X509_STORE_CTX_get_error_depth(pCtx);
+
+	WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:VerifyCallback] (001) (OK:%d)(Ctx:%p)(Err:%d)(Depth:%d)\n", nPreVerifyOk,pCtx,nErr,nDepth);
+
+    // Retrieve the pointer to the SSL of the connection currently treated
+    // and the application specific data stored into the SSL object.
+    ptSsl = (SSL *)X509_STORE_CTX_get_ex_data(pCtx, SSL_get_ex_data_X509_STORE_CTX_idx());
+    ptVeriData = (T_VERIDATA*)SSL_get_ex_data(ptSsl, nVeriDataIx);
+
+    X509_NAME_oneline(X509_get_subject_name(pErrCert), cBuf, 256);
+
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:VerifyCallback] (002) (Ssl:%p)(VeriDtaa:%p)\n", ptSsl,ptVeriData);
+
+	if (!ptVeriData) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:VerifyCallback] !ptVeriData\n");
+		return -1;
+	}
+
+    if (nDepth > ptVeriData->nVerifyDepth) {
+        nPreVerifyOk = 0;
+        nErr = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        X509_STORE_CTX_set_error(pCtx, nErr);
+    }
+    if (!nPreVerifyOk) {
+        WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:VerifyCallback] verify error:num=%d:%s:nDepth=%d:%s\n", nErr, X509_verify_cert_error_string(nErr), nDepth, cBuf); 
+    }
+    else if (ptVeriData->nVerboseMode)
+    {
+    	WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:VerifyCallback] nDepth=%d:%s\n", nDepth, cBuf); 
+    }
+
+    if (!nPreVerifyOk && (nErr == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT))
+    {
+      X509_NAME_oneline(X509_get_issuer_name(pCtx->current_cert), cBuf, 256);
+      WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:VerifyCallback] ssuer= %s\n", cBuf); 
+    }
+
+    if (ptVeriData->nAlwaysContinue)
+      return 1;
+    else
+      return nPreVerifyOk;
+}
+
+int WCSocketSSL::LoadCertiKey(char *pcCert, char *pcKey)
+{
+	if (!pcCert || !pcKey) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:LoadCertiKey] !pcCert(%p) || !pcKey(%p)\n", pcCert,pcKey);
+		return -1;
+	}
+	
+    // 자신의 인증서를 파일에서 로딩한다.
+    if (SSL_CTX_use_certificate_file(m_pCtx, pcCert, SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+	WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:LoadCertiKey] LOAD - crt (%s)\n", pcCert);
+
+    // 자신의 개인키를 파일에서 로딩한다.
+    if (SSL_CTX_use_PrivateKey_file(m_pCtx, pcKey, SSL_FILETYPE_PEM) <= 0) {
+        fprintf(stderr,"[Er] Key load\n");
+        ERR_print_errors_fp(stderr);
+        return -1;
+    }
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:LoadCertiKey] LOAD - key (%s)\n", pcKey);
+
+    // 읽은 인증서와 개인키가 맞는지 확인 한다.
+    if (!SSL_CTX_check_private_key(m_pCtx)) {
+        fprintf(stderr,"[Er] not match\n");
+        return -1;
+    }
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:LoadCertiKey] MATCH - Key,crt\n");
+
+	return 0;
+}
+
+int WCSocketSSL::HandShake(int nFd)
+{
+	if (!m_pCtx) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:HandShake] !m_pCtx\n");
+		return -1;
+	}
+
+	int nErr;
+	long nSslVal;
+	X509* pClientCert;
+	char cPeerCn[256];
+	char* pcStr=NULL;
+
+   	// SSL 구조체 생성
+    m_pSSL = SSL_new (m_pCtx);
+    if (!m_pSSL) {
+    	WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:HandShake] !m_pSSL\n");
+    	return -1;
+    }
+
+	// 클라이언트 인증서 요청
+	//SSL_set_verify(ssl,SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE,NULL);
+
+    // connect the SSL object with a file descriptor
+    // 연결된 소켓과 SSL과의 연결
+    SSL_set_fd (m_pSSL, nFd);
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] SSL_set_fd (SSL:%p)(Fd:%d)\n",m_pSSL,nFd);
+    //sleep(5);
+
+    // 가장 중요한 함수, 클라이언트와의 초기 협상과정, 즉 핸드쉐이크 과정을 수행
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] SSL_accept (Start) =========================\n");
+    nErr = SSL_accept(m_pSSL);
+	if (nErr == -1) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:HandShake] SSL_accept\n");
+		ERR_print_errors_fp(stderr);	
+		return -1;
+	}
+
+    // Get the cipher - opt
+    // 현재 클라이언트와 정의된 암호화 파라메터정보를 얻음
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] SSL_accept (End) ========================= (%s) (%s)\n", SSL_get_cipher(m_pSSL), SSL_CIPHER_get_name(SSL_get_current_cipher(m_pSSL)));
+
+	// 인증서 검사라는데...
+	nSslVal = SSL_get_verify_result(m_pSSL);
+	if (nSslVal != X509_V_OK) WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:HandShake] VERIFY (%ld)\n", nSslVal);
+	else WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] VERIFY (%ld)\n", nSslVal);
+
+    // Get client's certificate (note: beware of dynamic allocation) - opt
+    pClientCert = SSL_get_peer_certificate(m_pSSL);
+   	if (pClientCert)
+	{
+	   	X509_NAME_get_text_by_NID(X509_get_subject_name(pClientCert), NID_commonName, cPeerCn, 256);
+		WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] (CLIENTCERT-OK) (%s)\n", cPeerCn);
+
+		pcStr = X509_NAME_oneline (X509_get_subject_name (pClientCert),0,0);
+		if (pcStr) {
+  	  		WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] (CLIENTCERT-OK) Subject: %s\n", pcStr);
+    		free (pcStr);	
+    	}
+
+   	   	pcStr = X509_NAME_oneline (X509_get_issuer_name  (pClientCert),0,0);
+   	   	if (pcStr) {
+	   		WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandShake] (CLIENTCERT-OK) Issuer: %s\n", pcStr);
+       		free (pcStr);
+    	}
+
+    	X509_free (pClientCert);
+    	
+    	return 0;
+	}
+	else {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:HandShake] (CLIENTCERT-NO)\n");
+		return -1;
+	}
+}
+
+int WCSocketSSL::Read()
+{
+	int nRecvSz=0, nReadSz;
+
+	// 수신크기 얻기
+	if (ioctl(m_nFd, FIONREAD, &nReadSz) == -1) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:Read][%03d] ioctl(%s)\n", m_nFd,(char *)strerror(errno));
+		return -1;
+	}
+	WcLogPrintf(WCLog::E_MODE_ALL,"[SockS:Read][%03d] 01 (ReadSz:%d)\n", m_nFd,nReadSz);
+
+	// ReadSz가 0보다 작다는 것은 끊어짐
+	if (nReadSz <= 0) {
+		if (m_nSockType == SOCK_STREAM) 
+			nRecvSz = SSL_read(m_pSSL, &m_pcRecvBuf[m_nRecvIx], nReadSz); //nRecvSz = recv(m_nFd, &m_pcRecvBuf[m_nRecvIx], nReadSz, 0);
+		m_bConnect = false;//[swc,111011]	
+		WCTRACE(WCLog::E_MODE_WARN,"[SocketS:Read][%03d] ReadSz(%d)<= 0, RecvSz(%d)<=0\n", m_nFd, nReadSz, nRecvSz);
+		return nRecvSz;
+	}
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:Read][%03d] 02 (ReadSz:%d)(RecvSz:%d)\n", m_nFd,nReadSz,nRecvSz);
+
+	// 수신버퍼보다 패킷이 크면 버퍼크기를 늘린다.
+	int nDummy, nEmptySz;
+
+	nDummy = m_nDataCnt + nReadSz - m_nRecvBuf;
+	if (nDummy > 0) { 
+		char *pcTemp;
+		int nTempEmpty;
+
+		pthread_mutex_lock(&m_mutexRecvBuf);
+
+		nTempEmpty = m_nRecvBuf - m_nProcIx;
+		m_nRecvBuf += nDummy + 100;
+		pcTemp = (char *)malloc(m_nRecvBuf);
+		if (pcTemp) {
+
+			// 데이터가 있으면 데이터 옮김
+			if (m_nProcIx < m_nRecvIx) {
+				memcpy(pcTemp, &m_pcRecvBuf[m_nProcIx], m_nDataCnt);
+				//WcLogPrintf(WCLog::E_MODE_WARN,"[SockS:Read] ReMalloc 111 (Fd:%d)(RBufSz:%d)(RBuf:%p) (Rix:%d)(Pix:%d)(DCnt:%d)\n", m_nFd,m_nRecvBuf,m_pcRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt);
+			}
+			else if (m_nProcIx > m_nRecvIx) {
+				memcpy(pcTemp, &m_pcRecvBuf[m_nProcIx], nTempEmpty);
+				memcpy(&pcTemp[nTempEmpty], m_pcRecvBuf, m_nDataCnt-nTempEmpty);
+				//WcLogPrintf(WCLog::E_MODE_WARN,"[SockS:Read] ReMalloc 222 (Fd:%d)(RBufSz:%d)(RBuf:%p) (Rix:%d)(Pix:%d)(DCnt:%d)(Temp:%d)\n", m_nFd,m_nRecvBuf,m_pcRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt,nTempEmpty);
+			}
+			else {
+				// 옮길 데이터가 없음
+				//WcLogPrintf(WCLog::E_MODE_WARN,"[Sock:Read] ReMalloc 333 (Fd:%d)(RBufSz:%d)(RBuf:%p) (Rix:%d)(Pix:%d)(DCnt:%d)\n", m_nFd,m_nRecvBuf,m_pcRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt);
+			}
+
+			WcXFree(m_pcRecvBuf);
+			m_pcRecvBuf = pcTemp;
+			m_nRecvIx = m_nDataCnt;
+			m_nProcIx = 0;
+			WcLogPrintf(WCLog::E_MODE_WARN,"[SocketS:Read][%03d] ReMalloc (Sz:%d)(%p) (DataCnt:%d)(Rix:%d)\n", m_nFd,m_nRecvBuf,m_pcRecvBuf,m_nDataCnt,m_nRecvIx);
+		}
+		else
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:Read][%03d] ReMalloc (Sz:%d)(%p)\n", m_nFd,m_nRecvBuf,m_pcRecvBuf);
+
+		pthread_mutex_unlock(&m_mutexRecvBuf); //[swc,111103]
+	}
+
+	nRecvSz = 0;
+	nEmptySz = m_nRecvBuf - m_nRecvIx;
+
+	// 수신데이터가 수신버퍼의 빈공간보다 크면 임시버퍼를 만들어서 한꺼번에 수신후, 쪼개서 원래 수신버퍼로 나눠서 담는다. [swc,111103]}
+	if (m_nSockType == SOCK_STREAM) 
+	{
+		if (nEmptySz <= nReadSz) 
+		{
+			char *pcTemp2;
+			pcTemp2 = (char *)malloc(nReadSz+1);
+			nRecvSz = SSL_read(m_pSSL, pcTemp2, nReadSz);
+	
+			if (nEmptySz <= nRecvSz) 
+			{
+				int nFirstSz = nRecvSz - nEmptySz;
+				memcpy(&m_pcRecvBuf[m_nRecvIx], pcTemp2, nEmptySz);
+				if (nFirstSz > 0) memcpy(&m_pcRecvBuf[0], &pcTemp2[nEmptySz], nFirstSz);
+				m_nRecvIx = nFirstSz;
+				//WcLogPrintf(WCLog::E_MODE_ALL,"[SockS:Read] Recv 111 (Fd:%d) (ReadSz:%d)(RecvSz:%d)(EmSz:%d)(FrSz:%d) (RBufSz:%d)(Rix:%d)(Pix:%d)(DCnt:%d)\n", m_nFd,nReadSz,nRecvSz,nEmptySz,nFirstSz,m_nRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt+nRecvSz);
+			}
+			else
+			{
+				memcpy(&m_pcRecvBuf[m_nRecvIx], pcTemp2, nRecvSz);
+				m_nRecvIx += nRecvSz;
+				//WcLogPrintf(WCLog::E_MODE_ALL,"[SockS:Read] Recv 222 (Fd:%d) (ReadSz:%d)(RecvSz:%d)(EmSz:%d) (RBufSz:%d)(Rix:%d)(Pix:%d)(DCnt:%d)\n", m_nFd,nReadSz,nRecvSz,nEmptySz,m_nRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt+nRecvSz);
+			}
+			WcXFree(pcTemp2);
+		}
+		else 
+		{
+			nRecvSz = SSL_read(m_pSSL, &m_pcRecvBuf[m_nRecvIx], nReadSz);
+			m_nRecvIx += nRecvSz;
+			//WcLogPrintf(WCLog::E_MODE_ALL,"[SockS:Read] Recv 333 (Fd:%d) (ReadSz:%d)(RecvSz:%d)(EmSz:%d) (RBufSz:%d)(Rix:%d)(Pix:%d)(DCnt:%d)\n", m_nFd,nReadSz,nRecvSz,nEmptySz,m_nRecvBuf,m_nRecvIx,m_nProcIx,m_nDataCnt+nRecvSz);
+		}
+		m_nDataCnt += nRecvSz;
+	}
+
+	// 에러 체크: 0보다 작으면 연결 끊어짐
+	if (nRecvSz <= 0) {
+		//m_bConnect = false;//[swc,111011]
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:Read][%03d] RecvSz(%d) <= 0\n", m_nFd, nRecvSz);
+		return 1;//return -1; [swc,110111]
+	}
+
+	//WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:Read][%03d] END (Ip:%s)(Port:%d)(IpS:%s)(PortS:%d) (Rsz:%d)(Rix:%d)(Pix:%d)(Cnt:%d)\n", m_nFd,m_cIp,m_usPort,m_cIpS,m_usPortS,nRecvSz,m_nRecvIx,m_nProcIx,m_nDataCnt);
+	//WcLogPrintfHex(m_pcRecvBuf, m_nDataCnt);
+	//WcLogPrintfChar(m_pcRecvBuf, m_nDataCnt);
+
+	return nRecvSz;
+}
+
+int WCSocketSSL::Write(const char *pcWriteBuf, const int nWriteSz, const char *pcDestIp, const unsigned short usDestPort)
+{
+	// 인자 검사 (생략해야 하나?)
+	if (m_nFd<=0 || !pcWriteBuf || nWriteSz <= 0) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[SocketS:Write][%03d] m_nFd<=0 || !pcWriteBuf(%p) || nWriteSz(%d)<=0\n", m_nFd, pcWriteBuf, nWriteSz);
+		return -1;
+	}
+
+	// 못 보낸 패킷 송신
+	if (VWriteRe() == -1) {
+		WcLogPrintf(WCLog::E_MODE_ERROR,"[Socket:Write][%03d] VWriteRe() == -1\n", m_nFd);
+		VClose();
+		return -1;
+	}
+
+	int nRet=0, nEr;
+
+	// 못 보낸 패킷은 리스트에 저장한다.
+	if (m_nSockType == SOCK_STREAM) {
+		nRet = SSL_write(m_pSSL, &pcWriteBuf[0], nWriteSz);
+		WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:Write][%03d] send (%d)\n", m_nFd,nRet);
+	}
+
+	// 에러 처리: WSAEWOULDBLOCK, EAGIN일 경우는 재패킷
+	if (nRet == -1) 
+	{
+		nEr = errno;
+		if (nEr != EAGAIN && nEr != EWOULDBLOCK ) {
+			WcLogPrintf(WCLog::E_MODE_ERROR,"[Socket:Write][%03d] send(%s)\n", m_nFd, (char *)strerror(errno));
+		}
+		else {
+			WcLogPrintf(WCLog::E_MODE_WARN,"[Socket:Write][%03d] send, EWOULDBLOCK\n", m_nFd);
+			pthread_mutex_lock(&m_mutexRepack);
+			REPACK *pRePack = new REPACK;
+			if (pRePack) {
+				pRePack->pcData = (char *)malloc(nWriteSz+1);
+				if (pRePack->pcData) {
+					memcpy(pRePack->pcData, pcWriteBuf, nWriteSz);
+					pRePack->pcData[nWriteSz] = 0x00;
+					pRePack->nFailCnt = 1;
+					pRePack->nWriteSz = nWriteSz;
+					if (pcDestIp) strcpy(pRePack->cDestIp,pcDestIp);
+					pRePack->usDestPort = usDestPort;
+					m_queuePack.push(pRePack);
+				}
+			}
+			pthread_mutex_unlock(&m_mutexRepack);
+		}
+	}
+
+	return nRet;
+}
+
+int WCSocketSSL::VWriteRe()
+{
+	if (m_nFd <= 0) {
+		WcLogPrintf(WCLog::E_MODE_ERROR, "[Socket:VWriteRe][%03d] m_nFd<=0\n", m_nFd);
+		return -1;
+	}
+
+	int nRet=0,nEr,nCount;
+	REPACK *pRePack;
+
+	// 재송신이 일정횟수 이내 실패일때만 바로 루프를 빠져나오고 나머지 경우는 삭제한다. [swc,110128]
+	nCount = m_queuePack.size();
+	if (nCount > 0)
+	{
+		pthread_mutex_lock(&m_mutexRepack);	
+
+		for(int i=0; i<nCount; i++)
+		{
+			pRePack = m_queuePack.front();
+			if (pRePack && pRePack->pcData) 
+			{
+				WcLogPrintf(WCLog::E_MODE_WARN, "[Socket:VWriteRe][%03d] START (Wsz:%d)\n", m_nFd,pRePack->nWriteSz);
+				usleep(100);
+				if(m_nSockType == SOCK_STREAM) {
+					//nRet = send(m_nFd, pRePack->pcData, pRePack->nWriteSz, 0);
+					nRet = SSL_write(m_pSSL, pRePack->pcData, pRePack->nWriteSz);
+				}
+				WcLogPrintf(WCLog::E_MODE_WARN, "[Socket:VWriteRe][%03d] END (Wsz:%d)(Ret:%d)\n", m_nFd,pRePack->nWriteSz,nRet);
+	
+				if (nRet == -1) {
+					nEr = errno;
+					if (nEr != EAGAIN && nEr != EWOULDBLOCK) {
+						WcLogPrintf(WCLog::E_MODE_ERROR,"[Socket:VWriteRe][%03d] Error (%s)\n", m_nFd, (char *)strerror(errno));
+					}
+					else {
+						pRePack->nFailCnt++;
+						if (pRePack->nFailCnt > 10) {
+							WcLogPrintf(WCLog::E_MODE_ERROR,"[Socket:VWriteRe][%03d] FailCnt(%d) > 100\n", m_nFd, pRePack->nFailCnt);
+						}
+						else {
+							nRet = 1;
+							break;
+						}
+					}
+				}
+			}
+	
+			WcLogPrintf(WCLog::E_MODE_WARN,"[Socket:VWriteRe][%03d] send (Wsz:%d)(Ret:%d)\n", m_nFd,pRePack->nWriteSz,nRet);
+			m_queuePack.pop();
+			WcXFree(pRePack->pcData);
+			WcXDelete(pRePack);
+		}
+
+		pthread_mutex_unlock(&m_mutexRepack);
+	}
+
+	return nRet;
+}
+
+// SSL 핸드쉐이크 메시지교환 과정을 알려주는 콜벡함수
+void  HandshakeCallback(const SSL *s, int where, int ret)
+{
+	//BIO * g_errBIO;			// 화면에 표시 하기 위한 파일 BIO생성	
+  char * writeString;
+  int w;
+  // 현재 어떤 메시지 교환 과정인지를 나타냄
+  w = where & ~SSL_ST_MASK;
+
+  // 클라이언트가 연결 했을 때
+  if (w & SSL_ST_CONNECT)
+    writeString="SSL_connect";
+  // 서버가 연결을 받았을 때
+  else if (w & SSL_ST_ACCEPT)
+    writeString="SSL_accept";
+  // 알 수 없는 경우
+  else
+    writeString="undefined";
+
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s]\n", writeString);
+
+  // 일반적인 핸드쉐이크 프로토콜 메시지일 경우
+  if (where & SSL_CB_LOOP)
+  {
+    // SSL_state_string_long(s) 함수로 부터 현재 진행되는 메시지가 무엇인지 표시
+    //BIO_printf(g_errBIO,"%s:%s\n",writeString,SSL_state_string_long(s));
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s], SSL_state_string_long(s) = [%s]\n", writeString, SSL_state_string_long(s));
+  }
+  else if (where & SSL_CB_ALERT)
+  { // alert 프로토콜일 경우
+    writeString=(where & SSL_CB_READ) ? (char *)"read" : (char *)"write";
+    //BIO_printf(g_errBIO,"SSL3 alert %s:%s:%s\n",writeString,SSL_alert_type_string_long(ret),SSL_alert_desc_string_long(ret));
+    WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s], SSL_alert_type_string_long(ret) = [%s], SSL_alert_desc_string_long(ret) = [%s]\n", writeString, SSL_alert_type_string_long(ret), SSL_alert_desc_string_long(ret));
+  }
+  else if (where & SSL_CB_EXIT)
+  { // 종료 과정일 경우
+    if (ret == 0) {
+      //BIO_printf(g_errBIO,"%s:failed in %s\n",writeString,SSL_state_string_long(s));
+      WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s], SSL_state_string_long(s) = [%s]\n", writeString, SSL_state_string_long(s));
+    }
+    else if (ret < 0)
+    {
+      //BIO_printf(g_errBIO,"%s:error in %s\n",writeString,SSL_state_string_long(s));
+      WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s], SSL_state_string_long(s) = [%s]\n", writeString, SSL_state_string_long(s));
+    }
+  }
+  else 
+  	WcLogPrintf(WCLog::E_MODE_ALL,"[SocketS:HandBack] ======== writeString = [%s], SSL_state_string_long(s) = [%s]\n", writeString, SSL_state_string_long(s));
+  	
+}

@@ -1,0 +1,71 @@
+/**
+	@file wc_stack.cpp
+   	@brief WCStack 소스
+*/
+
+#include "wc_lib.h"
+
+/*template <typename T>
+WCStack<T>::WCStack(int asize)
+{
+	stack_size = asize;
+	member_num = 0;
+	ele_sizeof = sizeof(T);
+	container = (T *)malloc(ele_sizeof * stack_size);
+}
+
+// 소멸자
+// 스택을 free 한다. 
+export template <typename T>
+WCStack<T>::~WCStack()
+{
+    free(container);
+}
+
+// 데이타를 스택에 입력한다.  
+// 만약 스택사이즈가 꽉차있다면 
+// realloc 를 호출해서 스택사이즈를 
+// (현재 스택사이즈 * 2) 만큼 늘려준다.
+export template <typename T>
+void WCStack<T>::PushBack(T data)
+{
+    if (member_num == (stack_size - 1))
+    {
+        stack_size *= 2;
+        container = (T *)realloc(container, ele_sizeof * stack_size);
+    }
+    *(container + member_num) = data;
+    member_num++;
+}
+
+// 스택에서 데이타를 꺼낸다.  
+export template <typename T>
+T WCStack<T>::PopBack()
+{
+  member_num --;
+  return *(container+member_num);
+}
+
+// 데이타가 비어있는지 확인한다.
+export template <typename T>
+bool WCStack<T>::IsEmpty()
+{
+  return member_num == 0;
+}
+
+// 스택에 저장된 데이타의 갯수 
+export template <typename T>
+int WCStack<T>::GetSize()
+{
+  return member_num;
+}
+
+// 스택의 용량
+export template <typename T>
+int WCStack<T>::GetCapacity()
+{
+  return stack_size;
+}
+
+*/
+
