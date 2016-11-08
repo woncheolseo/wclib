@@ -1,5 +1,5 @@
 /**	
-	@mainpage Project : WcLibSvr
+	@mainpage Project : wcsvrlib
 
 	@brief
 		linux/unix Server Development Library
@@ -15,8 +15,8 @@
 			- WCObject - 최상위 클래스
 			- WIObject - 최상위 인터페이스
 			- WCLog - 별도 클래스
-		- 단위테스트 
-			- googletest
+		- ?? 단위테스트 
+			- ?? googletest
 
 	@note
 		- 원칙은 C11/C++11 표준으로 작성하는 것이었나 익숙하지 않은 관계로 실제 구현은 11 스럽지않을거 같다. ^^;
@@ -30,21 +30,21 @@
 	@bug
 
 	@todo
-		-# 클래스들 단위 테스트 작성
-		-# WCTimer에서 객체 할당을 위해 boost::pool을 사용중인데 WCManager를 상속받아서 메모리풀 관리하는 클래스를 따로 만들어 ? boost 굳히 사용할 필요가 ...
-		-# boost::format을 다른 것으로 교체 ?
-		-# 모든 클래스의 스트레스 테스트 및 단위테스트를 상세하게 작성해야 함, 그리고 예외처리도 확실하게 
-		-# char 배열을 string으로 변경, WCObject 키만 빼고. boost::format 이용
-		-# WCTimer, WITimer는 모두 상속받는데... 상속 관계에서 생성사,소멸자 호출 비용이 발생하는데... 최소화시켜려면 상속관계가 아닌 독립적?
+		-# ?? 클래스들 단위 테스트 작성
+		-# ?? WCTimer에서 객체 할당을 위해 boost::pool을 사용중인데 WCManager를 상속받아서 메모리풀 관리하는 클래스를 따로 만들어 ? boost 굳히 사용할 필요가 ...
+		-# ?? boost::format을 다른 것으로 교체 ?
+		-# ?? 모든 클래스의 스트레스 테스트 및 단위테스트를 상세하게 작성해야 함, 그리고 예외처리도 확실하게 
+		-# ?? char 배열을 string으로 변경, WCObject 키만 빼고. boost::format 이용
+		-# ?? WCTimer, WITimer는 모두 상속받는데... 상속 관계에서 생성사,소멸자 호출 비용이 발생하는데... 최소화시켜려면 상속관계가 아닌 독립적?
 
 	@author 
 		- 서원철, neo20@hanmail.net
 
 	@date
-		- 2015-10-05
+		- 2010-01-05
 			-# 최초 작성
 
-	@example sam_libwc.cpp
+	@example ?? sam_libwc.cpp
 */
 
 #ifndef __WC_LIBSVR_H__
@@ -58,6 +58,7 @@
 #include <cstdlib>
 #include <cstdarg>
 #include <iostream>
+/* ??
 #include <fstream>
 #include <ctime>
 #include <fcntl.h>
@@ -70,19 +71,27 @@
 #include <boost/pool/object_pool.hpp>
 #include <boost/format.hpp>
 #include <pqxx/pqxx> 
+*/
 //#include <json/json.h>
 //#include <openssl/sha.h>
+/* ??
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+*/
 
 using namespace std;
 
+/* ??
 #include "wc_protocol.h"
 #include "wc_log.h"
+*/
 #include "wi_object.h"
+/* ??
 #include "wi_timer.h"
 #include "wi_member.h"
+*/
 #include "wc_object.h"
+/* ??
 #include "wc_util.h"
 #include "wc_timer.h"
 #include "wc_cfg.h"
@@ -97,11 +106,12 @@ using namespace std;
 #include "wc_manager_socket.h"
 #include "wc_manager_thread.h"
 #include "wc_manager_db.h"
+*/
 
 /**********************************************************************************************************************************************************
 * extern 선언
 **********************************************************************************************************************************************************/
-extern WCLog ge_Log;
+// ?? extern WCLog ge_Log;
 
 /**********************************************************************************************************************************************************
 * 매크로 선언 
@@ -113,19 +123,21 @@ extern WCLog ge_Log;
 /// 디버깅 블럭
 #define WC_TRACEB(x) {x} 
 /// 디버깅 로그
-#define WC_TRACEL WCLOG_COUTLN
+// ?? #define WC_TRACEL WCLOG_COUTLN
 /// 디버깅 로그
-#define WC_TRACELF WCLOG_COUTLNFORMAT
+// ?? #define WC_TRACELF WCLOG_COUTLNFORMAT
 #else
 /// 디버깅
 #define WC_TRACE(x) 
 /// 디버깅 블럭
 #define WC_TRACEB(x) 
 /// 디버깅 로그
-#define WC_TRACEL(...)  
+// ?? #define WC_TRACEL(...)  
 /// 디버깅 로그
-#define WC_TRACELF(...)  
+// ?? #define WC_TRACELF(...)  
 #endif
+
+/* ??
 
 /// cout 서식
 #define WC_COUTLN(x1, x2, x3) { \
@@ -177,6 +189,8 @@ extern WCLog ge_Log;
     (y) = NULL; \
 }
 
+*/
+
 /**********************************************************************************************************************************************************
 * 전역변수 선언 
 **********************************************************************************************************************************************************/
@@ -188,49 +202,51 @@ const string WC_NOKSTR = "-1";			///< 실패문자열
 /**********************************************************************************************************************************************************
 * 전역함수 선언 
 **********************************************************************************************************************************************************/
-/**
+/* ??
 @brief wait 함수 재정의 
 @details 
 	- 인터럽트 시그널에 의해 wait 함수가 종료하면 자동으로 재시작하게 한다.
 @param pnStatLoc 자식 프로세스 종료 상태값 
 @return 성공: 0, 양수 - 자식프로세스ID
 @return 실패: WC_NOK
-*/
+*
 inline pid_t wait_r(int *pnStatLoc)
 {
 	int nRet;
 	while (((nRet = wait(pnStatLoc)) == -1) && (errno == EINTR));
 	return nRet;
 }
+*/
 
-/**
+/* ??
 @brief close 함수 재정의 
 @details
 	- 인터럽트 시그널에 의해 close 함수가 종료하면 자동으로 재시작하게 한다.
 @param nFd 파일 디스크립터
 @return 성공: 0, 양수 
 @return 실패: WC_NOK
-*/
+*
 inline int close_r(int nFd) 
 {
    int nRet;
    while (nRet = close(nFd), nRet == -1 && errno == EINTR) ;
    return nRet;
 }
+*/
 
-/*
+/**
 @brief 객체키 생성
 @details
 		- 
 @return 성공: 양수
 @return 실패: 0	
-*/	
+*/
 inline unsigned long long WcCreateObjectKey()
 {
 	// 객체키 설정
 	struct timespec tspecKey;
 	if (clock_gettime(CLOCK_REALTIME, &tspecKey) == -1) {
-		WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'clock_gettime' function has failed. ---> (Er:%d:%s)", __FILE__, __FUNCTION__, __LINE__, errno, (char *)strerror(errno));
+		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'clock_gettime' function has failed. ---> (Er:%d:%s)", __FILE__, __FUNCTION__, __LINE__, errno, (char *)strerror(errno));
 		return 0;
 	}
 	else {
@@ -252,7 +268,7 @@ inline unsigned long long WcCreateObjectKey()
 inline char* WcMemcpyChar(char *pcDest, const char *pcSrc, const size_t tSz)
 {
 	if (!pcDest || !pcSrc || tSz <= 0) {
-		WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] parameter was wrong. ---> !pcDest(%p) || !pcSrc(%p) || tSz(%d) <= 0", __FILE__, __FUNCTION__, __LINE__, pcDest, pcSrc, tSz);
+		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] parameter was wrong. ---> !pcDest(%p) || !pcSrc(%p) || tSz(%d) <= 0", __FILE__, __FUNCTION__, __LINE__, pcDest, pcSrc, tSz);
 		return NULL;
 	}
 
@@ -263,7 +279,7 @@ inline char* WcMemcpyChar(char *pcDest, const char *pcSrc, const size_t tSz)
 	return pcRet;
 }
 
-/**
+/** ??
 @brief strcpy
 @details 
 	- 
@@ -271,7 +287,7 @@ inline char* WcMemcpyChar(char *pcDest, const char *pcSrc, const size_t tSz)
 @param pcSrc 원본버퍼
 @return 성공: char* - 대상버퍼 포인터
 @return 실패: NULL
-*/
+*
 inline char* WcStrcpy(char *pcDest, const char *pcSrc)
 {
 	if (!pcDest || !pcSrc) {
@@ -282,8 +298,9 @@ inline char* WcStrcpy(char *pcDest, const char *pcSrc)
 	return 
 		(strcpy(pcDest,pcSrc));;
 }
+*/
 
-/**
+/** ??
 @brief strncpy
 @details 
 	- 
@@ -292,7 +309,7 @@ inline char* WcStrcpy(char *pcDest, const char *pcSrc)
 @param tSz 복사크기
 @return 성공: char* - 대상버퍼 포인터
 @return 실패: NULL
-*/
+*
 inline char* WcStrncpy(char *pcDest, const char *pcSrc, const size_t tSz)
 {
 	if (!pcDest || !pcSrc) {
@@ -303,5 +320,6 @@ inline char* WcStrncpy(char *pcDest, const char *pcSrc, const size_t tSz)
 	return 
 		(strncpy(pcDest,pcSrc,tSz));;
 }
+*/
 
 #endif

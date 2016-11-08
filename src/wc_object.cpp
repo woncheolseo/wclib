@@ -45,7 +45,7 @@ WCObject::~WCObject()
 inline void WCObject::InitMember(const char* const pcName)
 {
 	if (!pcName) {
-		WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
+		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
 		return;
 	}
 
@@ -83,7 +83,7 @@ bool WCObject::IsLive() const
 int WCObject::SetName(const char* const pcName)
 {
 	if (!pcName) {
-		WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
+		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
 		return WC_NOK;
 	}
 
