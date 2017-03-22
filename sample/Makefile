@@ -1,24 +1,24 @@
 ﻿.SUFFIXES = .cpp .o
 
-SRCS = sam_log.cpp
-SRCR = ../work/*.cpp
-SRCD = ../work/*.cpp
-SRCP = ../work/*.cpp
-SRCV = ../work/*.cpp
+SRCS = sam_libwc.cpp
+SRCR = ../src/*.cpp
+SRCD = ../src/*.cpp
+SRCP = ../src/*.cpp
+SRCV = ../src/*.cpp
 OBJS = $(SRCS:.cpp=.o)
 BACK = *.bak
 
-HOME = /home/nwaf
+HOME = /home/neo21/wclib
 TERM = xterm
 
 #INC = -I$(MYSQL_INC) -I$(ORACLE_INC) -I$(PROJECT_HOME)/aprogram/include
 #INC = -I$(MYSQL_INC) -I$(ORACLE_INC) -I$(PROJECT_HOME)/aprogram/include -I/usr/include/libxml2 -I/opt/tcmalloc/include/google -I/opt/libmemcached/include
 #INC = -I/opt/libmemcached/include
-INC = -I$(HOME)/aprogram/inc
-INCR = -I../work
-INCD = -I../work
-INCP = -I../work
-INCV = -I../work
+INC = -I$(HOME)/bin/inc
+INCR = -I../src
+INCD = -I../src
+INCP = -I../src
+INCV = -I../src
 
 #CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -D_REENTRANT -c
 CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -D_REENTRANT -std=c++11 -c -O2
@@ -33,7 +33,8 @@ CFLAGV = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -D_REE
 #LFLAGS = -lwc -lacti -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -liconv -lxml2 -ltcmalloc -lmemcached -lgmock
 #LFLAGS = -lmemcached
 #LFLAGS = -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -lgmock -lmemcached -lwc
-LFLAGS = -lwc -lpthread -lgmock -lboost_system -lpqxx -lcrypto
+#LFLAGS = -lwc -lpthread -lgmock -lboost_system -lpqxx -lcrypto
+LFLAGS = -lwc -lpthread -lgmock
 LFLAGR = -lpthread -lgmock -lboost_system -lpqxx
 LFLAGD = -lpthread -lgmock -lboost_system -lpqxx
 LFLAGP = -lpthread -lgmock -lboost_system -lpqxx-pg
@@ -42,7 +43,7 @@ LFLAGV = -lpthread -lgmock -lboost_system -lpqxx
 #LPATHS  = -L$(MYSQL_LIB) -L$(ORACLE_LIB) -L$(PROJECT_HOME)/aprogram/lib
 #LPATHS  = -L$(MYSQL_LIB) -L$(ORACLE_LIB) -L$(PROJECT_HOME)/aprogram/lib -L/opt/tcmalloc/lib -L/opt/libmemcached/lib
 #LPATHS  = -L/opt/libmemcached/lib
-LPATHS  = -L$(HOME)/aprogram/lib
+LPATHS  = -L$(HOME)/bin/lib
 LPATHR  = 
 LPATHD  =
 LPATHP  = 

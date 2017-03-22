@@ -252,7 +252,20 @@ public:
 	@return 성공: 0, 양수 - 출력된 문자열 길이. 날짜 등의 길이는 빠짐
 	@return 실패: WC_NOK, -2 - 로그레벨 불일치
 	*/
-	int Coutln(const E_LEVEL eLevel, const string& strLog);
+	int WriteConsole(const E_LEVEL eLevel, const string& strLog);
+
+	/**
+	@brief 로그 출력
+	@details
+		- 로그 레벨에 따라 E(에러), W(경고), D(디버그), S(정상) 접두어를 붙인다.
+		- 시간을 문장 첫머리에 덧붙여 출력한다.
+		- string은 format 서식을 지원하지 않는다.
+	@param eLevel 로그레벨 - E_LEVEL 값만 받는다.
+	@param strLog 로그데이터
+	@return 성공: 0, 양수 - 출력된 문자열 길이. 날짜 등의 길이는 빠짐
+	@return 실패: WC_NOK, -2 - 로그레벨 불일치
+	*/
+	int Write(const E_LEVEL eLevel, const string& strLog);
 
 	/**
 	@brief 로그 출력
@@ -264,7 +277,7 @@ public:
 	@return 성공: 0, 양수 - 출력된 문자열 길이. 날짜 등의 길이는 빠짐
 	@return 실패: WC_NOK, -2 - 로그레벨 불일치
 	*/
-	int CoutlnFormat(const E_LEVEL eLevel, const char *pcFmt, ...);
+	int WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...);
 
 private:
 	/**
