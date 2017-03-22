@@ -5,8 +5,8 @@ SRCS = $(wildcard *.cpp)
 SRCH = *.h
 OBJS = $(SRCS:.cpp=.o)
 #INC = -I$(MYSQL_INC) -I$(ORACLE_INC)
-DIR_LIB = ../exe/lib/
-DIR_INC = ../exe/inc/
+DIR_LIB = ../bin/lib/
+DIR_INC = ../bin/inc/
 
 #CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -std=c++11 -c -D_REENTRANT -Wno-write-strings -Wno-ignored-qualifiers
 CFLAGS = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -fPIC -O2 -std=c++11 -c -D_REENTRANT

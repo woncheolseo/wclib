@@ -66,13 +66,13 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 	int nRet = WC_NOK; 
 
 	if (&strFullName == nullptr) {
-		WC_COUTLN(cerr, "E", "Invalid parameter ---> strFullName was nullptr");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> strFullName == nullptr") % __FILE__ % __FUNCTION__ % __LINE__));
 		Close();
 		return nRet;
 	}
 	else if (strFullName.empty()) {
 		//파일명이 빈 것은 표준출력으로 출력한다.
-		//WC_COUTLN(cerr, "W", "Invalid parameter ---> strFullName was empty");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> strFullName.empty()") % __FILE__ % __FUNCTION__ % __LINE__));
 		Close();
 		m_strName = strFullName;
 		m_nLevel = nLevel;
@@ -84,7 +84,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 	struct tm tmBuf;
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		WC_COUTLN(cerr, "E", "Function call fails ---> localtime_r");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> localtime_r (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 		Close();
 		return nRet;
 	}
@@ -126,7 +126,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 				szTemp = szFound + 1;
 				nTemp = sprintf(cTemp, "%s", strTemp.c_str());
 				if (nTemp > 2048) {
-					WC_COUTLN(cerr, "E", "Function call fails ---> sprintf");
+					WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> nTemp > 2048") % __FILE__ % __FUNCTION__ % __LINE__));
 					break;
 				}
 				else {
@@ -135,7 +135,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 					}
 					else {
 						if (mkdir(cTemp, 0777) == -1) {
-							WC_COUTLN(cerr, "E", "Function call fails ---> mkdir");
+							WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> mkdir (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 							break;
 						}
 					}
@@ -164,7 +164,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 	// 파일 열기
 	m_ofs.open(strFilnalName, ofstream::out|ofstream::app);
 	if (!m_ofs.is_open()) {
-		WC_COUTLN(cerr, "E", str(boost::format("Function call fails ---> open, %s") % strFilnalName));
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> is_open (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 		nRet = WC_NOK;
 	}
 	else
@@ -183,18 +183,40 @@ int WCLog::Close()
 	return nRes;
 }
 
-int WCLog::Coutln(const E_LEVEL eLevel, const string& strLog)
+int WCLog::WriteConsole(const E_LEVEL eLevel, const string& strLog)
+{
+	long t;
+	struct tm tmBuf;
+
+	time(&t);
+	if (!localtime_r(&t, &tmBuf)) {
+		cerr << "[E-00:00:00] " << strLog << endl;
+		return WC_NOK;
+	}
+
+	if (eLevel == E_LEVEL_ERROR) {
+		cerr << "[E-" << tmBuf.tm_hour << ":" << tmBuf.tm_min << ":" << tmBuf.tm_sec << "] " << strLog << endl;
+	}
+	else {
+		cout << "[E-" << tmBuf.tm_hour << ":" << tmBuf.tm_min << ":" << tmBuf.tm_sec << "] " << strLog << endl;
+	}
+
+	return WC_OK;
+}
+
+int WCLog::Write(const E_LEVEL eLevel, const string& strLog)
 {
 	int nRet = WC_NOK;
 
 	if (&strLog == nullptr || strLog.empty()) {
-		WC_COUTLN(cerr, "E", "Empty parameter ---> strLog");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> &strLog == nullptr || strLog.empty()") % __FILE__ % __FUNCTION__ % __LINE__));
 		return nRet;
 	}
 
 	// 레벨 체크
 	if (!CheckLevel(eLevel)) {
-		WC_TRACELF(cerr, "W", str(boost::format("Loglevel was inconsistency. ---> (File:%1% != Log:%2%) (strLog:%3%") % m_nLevel % eLevel % strLog));		
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> Loglevel was inconsistency. ---> (File:%d != Log:%d) (strLog:%s)") 
+			% __FILE__ % __FUNCTION__ % __LINE__ % m_nLevel % eLevel % strLog));
    		return -2;
 	}
 
@@ -209,7 +231,7 @@ int WCLog::Coutln(const E_LEVEL eLevel, const string& strLog)
 	// 주기 체크
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		WC_COUTLN(cerr, "W", "Function call fails ---> localtime_r");
+		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> localtime_r");
 	}
 	else {
 		if (m_ofs.is_open()) {
@@ -242,18 +264,19 @@ int WCLog::Coutln(const E_LEVEL eLevel, const string& strLog)
 	return nRet;
 }
 
-int WCLog::CoutlnFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
+int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 {
 	int nRet = WC_NOK;
 
 	if (!pcFmt) {
-		WC_COUTLN(cerr, "E", "Null parameter ---> pcFmt");
+		WriteConsole(E_LEVEL_ERROR, "Null parameter ---> pcFmt");
 		return nRet;
 	}
 
 	// 레벨 체크
 	if (!CheckLevel(eLevel)) {
-		WC_TRACELF(cerr, "W", str(boost::format("Loglevel was inconsistency. ---> %d != %d") % m_nLevel % eLevel));
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> Loglevel was inconsistency. ---> (File:%d != Log:%d) (strLog:)") 
+			% __FILE__ % __FUNCTION__ % __LINE__ % m_nLevel % eLevel));
    		return -2;
 	}
 
@@ -269,8 +292,8 @@ int WCLog::CoutlnFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 	// 주기 체크
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		WC_COUTLN(cerr, "W", "Function call fails ---> localtime_r");
-	}
+		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> localtime_r");
+	}	
 	else {
 		if (m_ofs.is_open()) {
 			CheckCycle(&tmBuf);
@@ -282,11 +305,11 @@ int WCLog::CoutlnFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 	nLen = vsnprintf(&ch, 1, pcFmt, ap) + 1;	// 문자열수만큼 리턴됨. 가령 "abcde"이면 5가 리턴됨.
 	va_end(ap);
 	if (nLen <= 0) {
-		WC_COUTLN(cerr, "E", "Function call fails ---> vsnprintf, nLen <= 0");
+		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> vsnprintf, nLen <= 0");
 		nRet = WC_NOK;
 	}
 	else if (nLen > MAX_LOG_LENGTH) {
-		WC_COUTLN(cerr, "E", "Function call fails ---> vsnprintf, nLen > MAX_LOG_LENGTH");
+		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> vsnprintf, nLen > MAX_LOG_LENGTH");
 	}
 	else { 
 		// 버퍼 재할당
@@ -326,7 +349,7 @@ int WCLog::CoutlnFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 			nRet = nLen;
 		}
 		else {
-			WC_COUTLN(cerr, "E", "Function call fails ---> new");
+			WriteConsole(E_LEVEL_ERROR, "Function call fails ---> new");
 			nRet = WC_NOK;
 		}
 	}
@@ -369,7 +392,7 @@ bool WCLog::CheckLevel(const E_LEVEL eLevel)
 bool WCLog::CheckCycle(struct tm* const ptmBuf)
 {
  	if (!ptmBuf) {
-		WC_COUTLN(cerr, "E", "Null parameter ---> ptmBuf");
+		WriteConsole(E_LEVEL_ERROR, "Null parameter ---> ptmBuf");
 		return false;
 	}
 	else if (!m_ofs.is_open()) {
@@ -394,7 +417,7 @@ bool WCLog::CheckCycle(struct tm* const ptmBuf)
 	{	
 		Close();
 		if (Open(m_strName, m_nLevel, m_eCycle) == -1) {
-			WC_COUTLN(cerr, "E", "Function call fails ---> Open");
+			WriteConsole(E_LEVEL_ERROR, "Function call fails ---> Open");
 			return false;
 		}
 	}
