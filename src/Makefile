@@ -21,8 +21,10 @@ TARGETSL = $(TARGETSO:.so.0.9.0=.so)
 #공유LIB
 $(TARGETS) : $(OBJS)
 	$(CXX) -shared -o $(TARGETSO) $^
+	ln -s $(TARGETSO) $(TARGETSL)	
 	rm -rf $(DIR_LIB)$(TARGETSL)
 	mv $(TARGETSO) $(DIR_LIB)
+	mv $(TARGETSL) $(DIR_LIB)
 #	cp -f $(TARGETSO) $(DIR_LIB)
 #	ln -s $(DIR_LIB)$(TARGETSO) $(DIR_LIB)$(TARGETSL)
 	cp -f $(SRCH) $(DIR_INC)

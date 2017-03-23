@@ -1,6 +1,6 @@
 ﻿.SUFFIXES = .cpp .o
 
-SRCS = sam_libwc.cpp
+SRCS = sam_object.cpp
 SRCR = ../src/*.cpp
 SRCD = ../src/*.cpp
 SRCP = ../src/*.cpp
@@ -34,7 +34,7 @@ CFLAGV = -W -Wall -Wno-unused-parameter -Wconversion -Wshadow -Wcast-qual -D_REE
 #LFLAGS = -lmemcached
 #LFLAGS = -lpthread -lrt -lmysqlclient -locci -lociei -lnnz11 -lclntsh -lgmock -lmemcached -lwc
 #LFLAGS = -lwc -lpthread -lgmock -lboost_system -lpqxx -lcrypto
-LFLAGS = -lwc -lpthread -lgmock
+LFLAGS = -lwc -lpthread -lboost_system -lgmock
 LFLAGR = -lpthread -lgmock -lboost_system -lpqxx
 LFLAGD = -lpthread -lgmock -lboost_system -lpqxx
 LFLAGP = -lpthread -lgmock -lboost_system -lpqxx-pg

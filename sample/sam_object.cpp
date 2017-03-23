@@ -10,39 +10,12 @@ Usage : sam_object 모드번호 프로세스수 쓰레드수
 
 #include "wc_lib.h"
 
-void SamInit();
+// 프로세스 대기 플래그
+static bool g_bLoop = true;
+
 void Sam_Unittest(int argc, char *argv[]);
 void Sam_Basic1();
 void Sam_Stress(int argc, char *argv[], int nType);
-
-int main(int argc, char *argv[])
-{
-	int nMode = -1;
-
-	SamInit();
-
-	if (argc > 1) {
-		nMode = atoi(argv[1]);
-	}
-	else {
-		// 사용옵션
-		fprintf(stderr, "@ usage\n\tsam_object ModeNo ProcessCount ThreadCount\n@ option\n\tModeNo : 0-UnitTest, 1-BasicUsage, 9-StressTest\
-			\n@ Example\n\tsam_object 0\n\tsam_object 1\n\tsam_object 9 3 10\n");
-	}
-
-	if (nMode == 0) Sam_Unittest(argc, argv);		// 단위테스트 - sam_object 0
-	else if (nMode == 1) Sam_Basic1();				// 기본사용법1 - sam_object 1
-	else if (nMode == 9) Sam_Stress(argc, argv, 1);	// 스트레스테스트 - sam_object 9 3 10
-
-	return 0;
-}
-
-
-/****************************************************************************************************************************************************************************************************
-* 테스트 전역 클래스,함수,변수
-*****************************************************************************************************************************************************************************************************/
-// 프로세스 대기 플래그
-static bool g_bLoop = true;
 
 // INT 시그널 핸들링
 static void mn_sigint(int signo, siginfo_t *info, void *context)
@@ -62,6 +35,29 @@ void SamInit()
 
 	// 로그레벨 설정
 	WCLOG_SETLEVEL(WCLog::E_LEVEL_ALL);	
+}
+
+// 메인 함수
+int main(int argc, char *argv[])
+{
+	int nMode = -1;
+	char cUsage[] = "@ usage\n\tsam_object ModeNo ProcessCount ThreadCount\n@ option\n\tModeNo : 0-UnitTest, 1-BasicUsage, 9-StressTest\
+			\n@ Example\n\tsam_object 0\n\tsam_object 1\n\tsam_object 9 3 10\n";
+
+	SamInit();
+
+	if (argc > 1) {
+		nMode = atoi(argv[1]);
+		if (nMode == 0) Sam_Unittest(argc, argv);		// 단위테스트 - sam_object 0
+		else if (nMode == 1) Sam_Basic1();				// 기본사용법1 - sam_object 1
+		else if (nMode == 9) Sam_Stress(argc, argv, 1);	// 스트레스테스트 - sam_object 9 3 10
+		else fprintf(stderr, cUsage);		
+	}
+	else {
+		fprintf(stderr, cUsage);
+	}
+
+	return 0;
 }
 
 
@@ -267,7 +263,7 @@ void Sam_Stress(int argc, char *argv[], int nType)
 	}
 	else 
 	{	// 부모 : 자식 프로세스 대기
-		while (wait_r(NULL) > 0);
+		while (WC_Wait_r(NULL) > 0);
 		fprintf(stderr, "[%s] Parend End 1 (Pid:%d)\n", __FUNCTION__, getpid());
 	}
 }
@@ -285,10 +281,10 @@ void * ThreadFunc(void *pArg)
 	struct timeval tv;
 
 	// 쓰레드 시작
-	WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ALL, "[%s] Start (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
+	WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL, "[%s] Start (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
 	// 시작시간 기록
 	gettimeofday(&tv, NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,9 +300,9 @@ void * ThreadFunc(void *pArg)
 
 	// 종료시간 기록
 	gettimeofday(&tv, NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 	// 쓰레드 종료
-	WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ALL, "[%s] End (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
+	WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL, "[%s] End (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
 
 	return NULL;
 }

@@ -16,7 +16,7 @@ WIObject::WIObject() : INITLIST
 // 복사생성자
 WIObject::WIObject(const WIObject &Other) : INITLIST
 {
-	m_unllKeyPri = WcCreateObjectKey();	
+	m_unllKeyPri = WC_CreateObjectKey();	
 	IF_InitCopy(Other);
 }
 
@@ -39,7 +39,7 @@ WIObject::~WIObject()
 // 멤버변수 초기화 
 inline void WIObject::IF_InitMember()
 {
-	m_unllKeyPri = WcCreateObjectKey();
+	m_unllKeyPri = WC_CreateObjectKey();
 }
 
 // 멤버변수 복사

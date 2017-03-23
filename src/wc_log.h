@@ -29,7 +29,7 @@
 		- 서원철, neo20@hanmail.net
 
 	@date	
-		- 2015-10-07
+		- 2012-01-05
 			-# 최초 작성
 
 	@example sam_log.cpp
@@ -71,6 +71,8 @@ public:
 		E_CYCLE_MONTH,		///< 월별 파일 생성 - 입력받은 파일명 앞에 '년월-'을 붙여서 파일 생성  ex) 201510-test.log
 		E_CYCLE_DAY			///< 일일 파일 생성 - 입력받은 파일명 앞에 '년월일-'를 붙여서 파일 생성 ex) 20151023-test.log
 	};
+
+	static const int MAX_LOG_LENGTH = 100000;	///< 최대 로그 크기 - 아웃버퍼 크기
 
 public:
 	/**
@@ -242,11 +244,10 @@ public:
 	int Close();
 
 	/**
-	@brief 로그 출력
+	@brief 로그 출력 
 	@details
-		- 로그 레벨에 따라 E(에러), W(경고), D(디버그), S(정상) 접두어를 붙인다.
+		- 로그 레벨에 따라 E(에러)는 표준에러로, 나머지는 표준출력으로 출력한다.
 		- 시간을 문장 첫머리에 덧붙여 출력한다.
-		- string은 format 서식을 지원하지 않는다.
 	@param eLevel 로그레벨 - E_LEVEL 값만 받는다.
 	@param strLog 로그데이터
 	@return 성공: 0, 양수 - 출력된 문자열 길이. 날짜 등의 길이는 빠짐
@@ -317,9 +318,6 @@ private:
 	*/
 	bool CheckCycle(struct tm* const ptmBuf);
 
-public:
-	static const int MAX_LOG_LENGTH = 100000;	///< 최대 로그 크기 - 아웃버퍼 크기
-
 private:
 	ofstream m_ofs;								///< 로그파일
 	string m_strName;							///< 로프파일이름	
@@ -331,6 +329,7 @@ private:
 	int m_nOutBufSz;							///< 로그출력버퍼 크기
 	bool m_bMutex;								///< 로그쓰기 동기화 플래그
 	pthread_mutex_t m_mutexLog;					///< 로그파일 뮤텍스
+
 };
 
 #endif

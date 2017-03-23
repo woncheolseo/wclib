@@ -34,7 +34,7 @@ WCLog& WCLog::operator=(const WCLog &Other)
 WCLog::~WCLog()
 {
 	Close();
-	WC_DELETEL(m_pcOutBuf); 
+	WC_DELETE_ARRAY(m_pcOutBuf); 
 	pthread_mutex_destroy(&m_mutexLog);
 }
 
@@ -89,7 +89,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 		return nRet;
 	}
 
-	string strDir, strFile, strFilnalName;
+	string strDir, strFile, strFinalName;
 	size_t szFound, szFound1;
 	char cDateTime[20];
 
@@ -113,7 +113,8 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 	}
 
 	// 디렉토리 자동생성 - strtok_r 사용하지 않음
-	if (m_bDirCreate) {
+	if (m_bDirCreate) 
+	{
 		size_t szTemp = 0;
 		string strTemp;
 		struct stat sb;
@@ -126,7 +127,7 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 				szTemp = szFound + 1;
 				nTemp = sprintf(cTemp, "%s", strTemp.c_str());
 				if (nTemp > 2048) {
-					WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> nTemp > 2048") % __FILE__ % __FUNCTION__ % __LINE__));
+					WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> nTemp(%d) > 2048") % __FILE__ % __FUNCTION__ % __LINE__ % nTemp));
 					break;
 				}
 				else {
@@ -150,21 +151,21 @@ int WCLog::Open(const string& strFullName, const int nLevel, const E_CYCLE eCycl
 	if (m_eCycle == E_CYCLE_DAY) {
 		sprintf(cDateTime, "%04d%02d%02d-", tmBuf.tm_year+1900, tmBuf.tm_mon+1, tmBuf.tm_mday);
 		cDateTime[9] = 0x00;
-		strFilnalName = strDir + cDateTime + strFile;
+		strFinalName = strDir + cDateTime + strFile;
 	}
 	else if (m_eCycle == E_CYCLE_MONTH) {
 		sprintf(cDateTime, "%04d%02d-", tmBuf.tm_year+1900, tmBuf.tm_mon+1);
 		cDateTime[7] = 0x00;
-		strFilnalName = strDir + cDateTime + strFile;
+		strFinalName = strDir + cDateTime + strFile;
 	}
 	else {
-		strFilnalName = strFullName;
+		strFinalName = strFullName;
 	}
 
 	// 파일 열기
-	m_ofs.open(strFilnalName, ofstream::out|ofstream::app);
+	m_ofs.open(strFinalName, ofstream::out|ofstream::app);
 	if (!m_ofs.is_open()) {
-		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> is_open (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> is_open (%d, %s) strFinalName(%s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno) % strFinalName));
 		nRet = WC_NOK;
 	}
 	else
@@ -190,7 +191,7 @@ int WCLog::WriteConsole(const E_LEVEL eLevel, const string& strLog)
 
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		cerr << "[E-00:00:00] " << strLog << endl;
+		cerr << "[E-00:00:00] Function -> localtime_r (" << errno << ", " << strerror(errno) << ") " << strLog << endl;
 		return WC_NOK;
 	}
 
@@ -231,7 +232,7 @@ int WCLog::Write(const E_LEVEL eLevel, const string& strLog)
 	// 주기 체크
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> localtime_r");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> localtime_r (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 	}
 	else {
 		if (m_ofs.is_open()) {
@@ -269,7 +270,7 @@ int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 	int nRet = WC_NOK;
 
 	if (!pcFmt) {
-		WriteConsole(E_LEVEL_ERROR, "Null parameter ---> pcFmt");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !pcFmt") % __FILE__ % __FUNCTION__ % __LINE__));
 		return nRet;
 	}
 
@@ -292,7 +293,7 @@ int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 	// 주기 체크
 	time(&t);
 	if (!localtime_r(&t, &tmBuf)) {
-		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> localtime_r");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> localtime_r (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 	}	
 	else {
 		if (m_ofs.is_open()) {
@@ -305,11 +306,11 @@ int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 	nLen = vsnprintf(&ch, 1, pcFmt, ap) + 1;	// 문자열수만큼 리턴됨. 가령 "abcde"이면 5가 리턴됨.
 	va_end(ap);
 	if (nLen <= 0) {
-		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> vsnprintf, nLen <= 0");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> vsnprintf (%d, %s) nLen(%d) <= 0") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno) % nLen));
 		nRet = WC_NOK;
 	}
 	else if (nLen > MAX_LOG_LENGTH) {
-		WriteConsole(E_LEVEL_ERROR, "Function call fails ---> vsnprintf, nLen > MAX_LOG_LENGTH");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> vsnprintf (%d, %s) nLen(%d) > MAX_LOG_LENGTH") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno) % nLen));
 	}
 	else { 
 		// 버퍼 재할당
@@ -320,7 +321,7 @@ int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 		}
 		else {
 			if (m_nOutBufSz < nLenBuf) {
-				WC_DELETEL(m_pcOutBuf);
+				WC_DELETE_ARRAY(m_pcOutBuf);
 				m_nOutBufSz = nLenBuf + 100; // 여분 100byte
 				m_pcOutBuf = new char[m_nOutBufSz];
 			}
@@ -349,7 +350,7 @@ int WCLog::WriteFormat(const E_LEVEL eLevel, const char *pcFmt, ...)
 			nRet = nLen;
 		}
 		else {
-			WriteConsole(E_LEVEL_ERROR, "Function call fails ---> new");
+			WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> new (%d, %s)") % __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno)));
 			nRet = WC_NOK;
 		}
 	}
@@ -392,7 +393,7 @@ bool WCLog::CheckLevel(const E_LEVEL eLevel)
 bool WCLog::CheckCycle(struct tm* const ptmBuf)
 {
  	if (!ptmBuf) {
-		WriteConsole(E_LEVEL_ERROR, "Null parameter ---> ptmBuf");
+		WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !ptmBuf") % __FILE__ % __FUNCTION__ % __LINE__));
 		return false;
 	}
 	else if (!m_ofs.is_open()) {
@@ -417,7 +418,8 @@ bool WCLog::CheckCycle(struct tm* const ptmBuf)
 	{	
 		Close();
 		if (Open(m_strName, m_nLevel, m_eCycle) == -1) {
-			WriteConsole(E_LEVEL_ERROR, "Function call fails ---> Open");
+			WriteConsole(E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Function -> Open (%d, %s) m_strName(%s), m_nLevel(%d), m_eCycle(%d)") 
+				% __FILE__ % __FUNCTION__ % __LINE__ % errno % strerror(errno) % m_strName % m_nLevel % m_eCycle));
 			return false;
 		}
 	}
