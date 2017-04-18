@@ -1,5 +1,5 @@
 /**
-	@class WCProcess
+	@class WCProc
 
 	@brief
 		프로세스 상위 클래스
@@ -14,20 +14,20 @@
 		- 서원철, neo20@hanmail.net
 
 	@date
-	    - 2015-10-16
+	    - 2010-01-05
 	        -# 최초 작성
 */
 
-#ifndef __WCPROCESS_H__
-#define __WCPROCESS_H__
+#ifndef __WCPROC_H__
+#define __WCPROC_H__
 
-class WCProcess : public WCObject, public WIMember
+class WCProc : public WCObject, public WIMember
 {
 public :
 	/**
 	@brief 생성자
 	*/
-	WCProcess();
+	WCProc();
 
 	/**
 	@brief 생성자
@@ -35,7 +35,7 @@ public :
 		- 
 	@param pcName 객체명
 	*/
-	WCProcess(const char* const pcName);
+	WCProc(const char* const pcName);
 
 	/**
 	@brief 복사생성자
@@ -43,7 +43,7 @@ public :
 		- 
 	@param Other 복사객체
 	*/
-	WCProcess(const WCProcess &Other);
+	WCProc(const WCProc &Other);
 
 	/**
 	@brief 대입연산자
@@ -52,12 +52,12 @@ public :
 	@return 성공: 대입된 객체참조자
 	@return 실패: 없음
 	*/
-	WCProcess& operator=(const WCProcess &Other);
+	WCProc& operator=(const WCProc &Other);
 
 	/**
 	@brief 소멸자
 	*/
-	virtual ~WCProcess();
+	virtual ~WCProc();
 
 public:
 	/** 

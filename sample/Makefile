@@ -1,6 +1,6 @@
 ﻿.SUFFIXES = .cpp .o
 
-SRCS = sam_object.cpp
+SRCS = sam_db.cpp
 SRCR = ../src/*.cpp
 SRCD = ../src/*.cpp
 SRCP = ../src/*.cpp

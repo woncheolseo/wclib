@@ -92,20 +92,21 @@ using namespace std;
 #include "wi_object.h"
 /* ??
 #include "wi_timer.h"
-#include "wi_member.h"
 */
+#include "man/wi_member.h"
+
 #include "wc_object.h"
+#include "db/wc_db.h"
+#include "ipc/wc_ipc.h"
+#include "proc/wc_proc.h"
+#include "man/wc_group.h"
 #include "util/wc_util.h"
 /* ??
+#include "man/wc_manager.h"
 #include "wc_timer.h"
 #include "wc_cfg.h"
-#include "wc_group.h"
-#include "wc_manager.h"
-#include "wc_ipc.h"
-#include "wc_process.h"
 #include "wc_socket.h"
 #include "wc_thread.h"
-#include "wc_db.h"
 #include "wc_postgreSQL.h"
 #include "wc_manager_socket.h"
 #include "wc_manager_thread.h"

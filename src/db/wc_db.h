@@ -20,8 +20,10 @@
 		- 서원철, neo20@hanmail.net
 
 	@date
-	    - 2015-10-16
+	    - 2010-01-05
 	        -# 최초 작성
+
+	@example sam_db.cpp
 */
 
 #ifndef __WC_DB_H__
@@ -154,6 +156,46 @@ public :
 	@return 실패: WC_NOK
 	*/
 	void Set(const string& strIP, const int nPort, const string& strID, const string& strPW, const string& strDB, const E_CHARSET eCharSet=E_CHARSET_UTF8);	
+
+	/**
+	* @brief DB주소 반환
+	*
+	* @return 성공: DB주소명
+	* @return 실패: 없음
+	*/
+	const string GetIP() { 
+		return m_strIP; 
+	}
+
+	/**
+	* @brief DB계정 반환
+	*
+	* @return 성공: DB계정명
+	* @return 실패: 없음
+	*/
+	const string GetID() { 
+		return m_strID; 
+	}
+
+	/**
+	* @brief DB패스워드 반환
+	*
+	* @return 성공: DB패스워드명
+	* @return 실패: 없음
+	*/
+	const string GetPW() { 
+		return m_strPW; 
+	}
+
+	/**
+	* @brief DB이름 반환
+	*
+	* @return 성공: DB이름
+	* @return 실패: 없음
+	*/
+	const string GetDB() { 
+		return m_strDB; 
+	}
 
 private:
 	/**

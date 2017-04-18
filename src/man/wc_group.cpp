@@ -3,7 +3,7 @@
    	@brief WCGroup 소스
 */
 
-#include "wc_lib.h"
+#include "../wc_lib.h"
 
 WCGroup::WCGroup()
 {
