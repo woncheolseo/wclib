@@ -6,8 +6,6 @@
 9. 스트레스테 스트
 
 Usage : sam_libwc 모드번호 프로세스수 쓰레드수
-
-* 샘플코드 기준 양식
 */
 
 #include "wc_lib.h"
@@ -81,9 +79,22 @@ void Sam_Unittest(int argc, char *argv[])
 /****************************************************************************************************************************************************************************************************
 * 1. 기본사용법
 * 
+* 각종 전역함수들을 테스트한다.
 *****************************************************************************************************************************************************************************************************/
 void Sam_Basic1()
 {
+	// WC_CreateObjectKey() 함수 테스트 
+	unsigned long long uKey;
+	uKey = WC_CreateObjectKey();
+	fprintf(stderr, "Key - %llu\n", uKey);
+
+	// WC_MemcpyChar() 함수 테스트 
+	char cDest1[5], cDest2[5], cSrc1[5]="abc", cSrc2[5]="xyz";
+	char *pRes1, *pRes2;
+	pRes1 = WC_MemcpyChar(cDest1, cSrc1, sizeof(cDest1)-1);
+	pRes2 = WC_MemcpyChar(cDest2, cSrc2, sizeof(cDest2)-1);
+	fprintf(stderr, "Mem1 - %p, %s\n", pRes1, cDest1);	
+	fprintf(stderr, "Mem2 - %p, %s\n", pRes2, cDest2);	
 }
 
 /****************************************************************************************************************************************************************************************************
@@ -158,7 +169,7 @@ void Sam_Stress(int argc, char *argv[], int nType)
 	}
 	else 
 	{	// 부모 : 자식 프로세스 대기
-		while (wait_r(NULL) > 0);
+		while (WC_Wait(NULL) > 0);
 		fprintf(stderr, "[%s] Parend End 1 (Pid:%d)\n", __FUNCTION__, getpid());
 	}
 }
@@ -176,10 +187,10 @@ void * ThreadFunc(void *pArg)
 	struct timeval tv;
 
 	// 쓰레드 시작
-	WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ALL, "[%s] Start (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
+	WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL, "[%s] Start (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
 	// 시작시간 기록
 	gettimeofday(&tv, NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,9 +206,9 @@ void * ThreadFunc(void *pArg)
 
 	// 종료시간 기록
 	gettimeofday(&tv, NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 	// 쓰레드 종료
-	WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ALL, "[%s] End (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
+	WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL, "[%s] End (Pid:%d)(Pno:%d)", __FUNCTION__, getpid(), nPno);
 
 	return NULL;
 }
@@ -207,9 +218,9 @@ TEST(UnitTest_libwc, UTLibWcXMemcpy)
 {
 	char cDest[10]={0,}, cSrc[10]="abcde";
 
-	WcMemcpyChar(cDest, cSrc, sizeof(cDest)-1);
+	WC_MemcpyChar(cDest, cSrc, sizeof(cDest)-1);
 
-	// 단위테스트 - WcXMemcpyChar 호출후 결과
+	// 단위테스트 - WC_MemcpyChar 호출후 결과
 	size_t szLenDest, szLenSrc;
 
 	szLenDest = strlen(cDest);

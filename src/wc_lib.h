@@ -44,7 +44,7 @@
 		- 서원철, neo20@hanmail.net
 
 	@date
-		- 2012-01-05
+		- 2010-01-05
 			-# 최초 작성
 
 	@example sam_libwc.cpp
@@ -95,8 +95,8 @@ using namespace std;
 #include "wi_member.h"
 */
 #include "wc_object.h"
+#include "util/wc_util.h"
 /* ??
-#include "wc_util.h"
 #include "wc_timer.h"
 #include "wc_cfg.h"
 #include "wc_group.h"
@@ -194,7 +194,7 @@ const string WC_NOKSTR = "-1";			///< 실패문자열
 @return 성공: 0, 양수 - 자식프로세스ID
 @return 실패: WC_NOK
 */
-inline pid_t WC_Wait_r(int *pnStatLoc)
+inline pid_t WC_Wait(int *pnStatLoc)
 {
 	int nRet;
 	while (((nRet = wait(pnStatLoc)) == -1) && (errno == EINTR));
@@ -209,7 +209,7 @@ inline pid_t WC_Wait_r(int *pnStatLoc)
 @return 성공: 0, 양수 
 @return 실패: WC_NOK
 */
-inline int WC_Close_r(int nFd) 
+inline int WC_Close(int nFd) 
 {
    int nRet;
    while (nRet = close(nFd), nRet == -1 && errno == EINTR) ;
@@ -250,7 +250,8 @@ inline unsigned long long WC_CreateObjectKey()
 inline char* WC_MemcpyChar(char *pcDest, const char *pcSrc, const size_t tSz)
 {
 	if (!pcDest || !pcSrc || tSz <= 0) {
-		WCLOG_WRITE(WCLog::E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !pcDest(%p) || !pcSrc(%p) || tSz(%d) <= 0") % __FILE__ % __FUNCTION__ % __LINE__ % pcDest % pcSrc % tSz));
+		WCLOG_WRITE(WCLog::E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !pcDest(%p) || !pcSrc(%p) || tSz(%d) <= 0") 
+			% __FILE__ % __FUNCTION__ % __LINE__ % pcDest % pcSrc % tSz % sizeof(*pcDest)));
 		return NULL;
 	}
 

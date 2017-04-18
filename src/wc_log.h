@@ -29,7 +29,7 @@
 		- 서원철, neo20@hanmail.net
 
 	@date	
-		- 2012-01-05
+		- 2010-01-05
 			-# 최초 작성
 
 	@example sam_log.cpp

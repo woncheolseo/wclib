@@ -6,7 +6,7 @@
 2. 기본 사용법2
 3. 기본 사용법3
 90. 스트레스 테스트1
-91. 스트레스 테스트1
+91. 스트레스 테스트2
 
 Usage : sam_log 모드번호 프로세스수 쓰레드수 라인수
 */
@@ -290,7 +290,7 @@ void Sam_Stress(int argc, char *argv[], int nType)
 	}
 	else 
 	{	// 부모 : 자식 프로세스 대기
-		while (WC_Wait_r(NULL) > 0);
+		while (WC_Wait(NULL) > 0);
 		fprintf(stderr,"[%s] Parend End 1 (Pid:%d)\n", __FUNCTION__, getpid());
 	}
 }
@@ -370,7 +370,7 @@ TEST(UnitTest_WCLog, UTLogBasic1)
 	// 로그 오픈 
 	nRet1 = cLog1.Open("zt01.log", WCLog::E_LEVEL_ALL, WCLog::E_CYCLE_ONE);
 	EXPECT_EQ(nRet1, WC_OK);
-	EXPECT_EQ(cLog1.IsOpen(), false);
+	EXPECT_EQ(cLog1.IsOpen(), true);
 
 	// 로그 쓰기 
 	nRet1 = cLog1.WriteFormat(WCLog::E_LEVEL_ALL, "ABCDE");

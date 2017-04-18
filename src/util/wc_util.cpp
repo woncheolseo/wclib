@@ -3,7 +3,7 @@
    	@brief WCUtil 소스
 */
 
-#include "wc_lib.h"
+#include "../wc_lib.h"
 
 WCUtil::WCUtil()
 {

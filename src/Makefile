@@ -1,6 +1,6 @@
 .SUFFIXES = .cpp .o
 
-SRCS = $(wildcard *.cpp)
+SRCS = $(wildcard *.cpp util/*.cpp)
 #SRCH = $(SRCS:.cpp=.h)
 SRCH = *.h
 OBJS = $(SRCS:.cpp=.o)
@@ -30,7 +30,8 @@ $(TARGETS) : $(OBJS)
 	cp -f $(SRCH) $(DIR_INC)
 
 .cpp.o :
-	$(CXX) $< $(INC) $(CFLAGS)
+	$(CXX) $(INC) $(CFLAGS) $^ -o $@
+#	$(CXX) $< $(INC) $(CFLAGS)
 
 #정적LIB
 $(TARGETA) :
@@ -38,7 +39,11 @@ $(TARGETA) :
 
 #삭제
 clean :
-	rm -rf *.o *.bak *.log *.cache
+	find ./ -name "*.o" | xargs rm -f
+	find ./ -name "*.bak" | xargs rm -f
+	find ./ -name "*.log" | xargs rm -f
+	find ./ -name "*.cache" | xargs rm -f
+#	rm -rf *.o *.bak *.log *.cache
 
 #삭제-라이브러리
 cleanlib :
