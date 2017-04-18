@@ -24,7 +24,7 @@ WCObject::WCObject(const string strName) : INITLIST
 
 WCObject::WCObject(const WCObject &Other) : INITLIST
 {
-	m_unllKeyPri = WcCreateObjectKey();
+	m_unllKeyPri = WC_CreateObjectKey();
 	InitCopy(Other);
 }
 
@@ -45,12 +45,12 @@ WCObject::~WCObject()
 inline void WCObject::InitMember(const char* const pcName)
 {
 	if (!pcName) {
-		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
+		WCLOG_WRITE(WCLog::E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !pcName") % __FILE__ % __FUNCTION__ % __LINE__));
 		return;
 	}
 
 	// 객체키 설정
-	m_unllKeyPri = m_unllKeyGrp = WcCreateObjectKey();
+	m_unllKeyPri = m_unllKeyGrp = WC_CreateObjectKey();
 
 	// 객체명 설정 - 객체명이 없으면 키값을 이름으로 등록한다.
 	if (strcmp(pcName,"") == 0) {
@@ -68,7 +68,7 @@ inline void WCObject::InitCopy(const WCObject &Other)
 	// 멤버 복사
 	// m_unllKeyPri = Other.m_unllKeyPri; // 개인키는 복사하지 않는다.
 	m_unllKeyGrp = Other.m_unllKeyGrp;
-	WcMemcpyChar(m_cName, Other.m_cName, sizeof(m_cName)-1);
+	WC_MemcpyChar(m_cName, Other.m_cName, sizeof(m_cName)-1);
 }
 
 bool WCObject::IsLive() const
@@ -83,12 +83,12 @@ bool WCObject::IsLive() const
 int WCObject::SetName(const char* const pcName)
 {
 	if (!pcName) {
-		// ?? WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ERROR, "[%s:%s:%d] 'Invalid parameter ---> !pcName", __FILE__, __FUNCTION__, __LINE__);
+		WCLOG_WRITE(WCLog::E_LEVEL_ERROR, str(boost::format("[%s:%s:%d] Parameter -> !pcName") % __FILE__ % __FUNCTION__ % __LINE__));
 		return WC_NOK;
 	}
 
 	char *pcRet 
-		= WcMemcpyChar(m_cName, pcName, sizeof(m_cName)-1);
+		= WC_MemcpyChar(m_cName, pcName, sizeof(m_cName)-1);
 	if (pcRet) 
 		return WC_OK;
 	else

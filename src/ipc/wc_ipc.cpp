@@ -3,7 +3,7 @@
    	@brief WCIpc 소스
 */
 
-#include "wc_lib.h"
+#include "../wc_lib.h"
 
 WCIpc::WCIpc()
 {

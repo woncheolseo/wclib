@@ -1,8 +1,8 @@
 .SUFFIXES = .cpp .o
 
-SRCS = $(wildcard *.cpp)
-#SRCH = $(SRCS:.cpp=.h)
+SRCS = $(wildcard *.cpp db/*.cpp ipc/*.cpp man/*.cpp proc/*.cpp util/*.cpp)
 SRCH = *.h
+#SRCH = $(SRCS:.cpp=.h)
 OBJS = $(SRCS:.cpp=.o)
 #INC = -I$(MYSQL_INC) -I$(ORACLE_INC)
 DIR_LIB = ../bin/lib/
@@ -21,14 +21,23 @@ TARGETSL = $(TARGETSO:.so.0.9.0=.so)
 #공유LIB
 $(TARGETS) : $(OBJS)
 	$(CXX) -shared -o $(TARGETSO) $^
+	ln -s $(TARGETSO) $(TARGETSL)	
 	rm -rf $(DIR_LIB)$(TARGETSL)
 	mv $(TARGETSO) $(DIR_LIB)
+	mv $(TARGETSL) $(DIR_LIB)
 #	cp -f $(TARGETSO) $(DIR_LIB)
 #	ln -s $(DIR_LIB)$(TARGETSO) $(DIR_LIB)$(TARGETSL)
 	cp -f $(SRCH) $(DIR_INC)
+	cp -f db/$(SRCH) $(DIR_INC)db/
+	cp -f ipc/$(SRCH) $(DIR_INC)ipc/
+	cp -f man/$(SRCH) $(DIR_INC)man/
+	cp -f proc/$(SRCH) $(DIR_INC)proc/
+	cp -f util/$(SRCH) $(DIR_INC)util/
 
 .cpp.o :
-	$(CXX) $< $(INC) $(CFLAGS)
+	$(CXX) $(INC) $(CFLAGS) $^ -o $@
+#	$(CXX) $(INC) $(CFLAGS) $^ -o $@
+#	$(CXX) $< $(INC) $(CFLAGS)
 
 #정적LIB
 $(TARGETA) :
@@ -36,7 +45,11 @@ $(TARGETA) :
 
 #삭제
 clean :
-	rm -rf *.o *.bak *.log *.cache
+	find ./ -name "*.o" | xargs rm -f
+	find ./ -name "*.bak" | xargs rm -f
+	find ./ -name "*.log" | xargs rm -f
+	find ./ -name "*.cache" | xargs rm -f
+#	rm -rf *.o *.bak *.log *.cache
 
 #삭제-라이브러리
 cleanlib :

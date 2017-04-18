@@ -4,51 +4,23 @@
 0. 단위 테스트 
 1. 기본 사용법1
 2. 기본 사용법2
+3. 기본 사용법3
 90. 스트레스 테스트1
-91. 스트레스 테스트1
+91. 스트레스 테스트2
 
 Usage : sam_log 모드번호 프로세스수 쓰레드수 라인수
 */
 
 #include <wc_lib.h>
 
-void SamInit();
+// 프로세스 대기 플래그
+static bool g_bLoop = true;
+
 void Sam_Unittest(int argc, char *argv[]);
 void Sam_Basic1();
 void Sam_Basic2();
+void Sam_Basic3();
 void Sam_Stress(int argc, char *argv[], int nType);
-
-int main(int argc, char *argv[])
-{
-	int nMode = -1;
-
-	SamInit();
-
-	if (argc > 1) {
-		nMode = atoi(argv[1]);
-	}
-	else {
-		// 사용옵션
-		fprintf(stderr, "@ usage\n\tsam_log ModeNo ProcessCount ThreadCount LineCount\n@ option\n\tModeNo : 0-UnitTest, 1-BasicUsage1, 2-BasicUsage2, 90-StressTest, 91-StressTest\
-			\n@ Example\n\tsam_log 0\n\tsam_log 1\n\tsam_log 2\n\tsam_log 90 2 10 100\n\tsam_log 91 2 10 100\n");
-	}
-
-
-	if (nMode == 0) Sam_Unittest(argc, argv);			// 단위테스트, sam_log 0
-	else if (nMode == 1) Sam_Basic1();					// 기본사용법1, sam_log 1
-	else if (nMode == 2) Sam_Basic2();					// 기본사용법2, sam_log 2
-	else if (nMode == 90) Sam_Stress(argc, argv, 0);	// 스트레스테스트-각각의 파일에 쓰기, sam_log 90 2 10 100
-	else if (nMode == 91) Sam_Stress(argc, argv, 1);	// 스트레스테스트-하나의 파일에 쓰기, sam_log 91 2 10 100
-
-	return 0;
-}
-
-
-/****************************************************************************************************************************************************************************************************
-* 테스트 전역 클래스,함수,변수
-*****************************************************************************************************************************************************************************************************/
-// 프로세스 대기 플래그
-static bool g_bLoop = true;
 
 // INT 시그널 핸들링
 static void mn_sigint(int signo, siginfo_t *info, void *context)
@@ -65,6 +37,32 @@ void SamInit()
 	act.sa_flags = SA_SIGINFO;
 	act.sa_sigaction = mn_sigint;
 	if ((sigemptyset(&act.sa_mask) == -1) || (sigaction(SIGINT, &act, NULL) == -1)) {};
+}
+
+// 메인 함수
+int main(int argc, char *argv[])
+{
+	int nMode = -1;
+	char cUsage[] = "@ usage\n\tsam_log ModeNo ProcessCount ThreadCount LineCount\n@ option\n\tModeNo : 0-UnitTest, 1-BasicUsage1, 2-BasicUsage2, 3-BasicUsage3, 90-StressTest, 91-StressTest\
+			\n@ Example\n\tsam_log 0\n\tsam_log 1\n\tsam_log 2\n\tsam_log 3\n\tsam_log 90 2 10 100\n\tsam_log 91 2 10 100\n";
+
+	SamInit();
+
+	if (argc > 1) {
+		nMode = atoi(argv[1]);
+		if (nMode == 0) Sam_Unittest(argc, argv);			// 단위테스트, sam_log 0
+		else if (nMode == 1) Sam_Basic1();					// 기본사용법1, sam_log 1
+		else if (nMode == 2) Sam_Basic2();					// 기본사용법2, sam_log 2
+		else if (nMode == 3) Sam_Basic3();					// 기본사용법3, sam_log 3
+		else if (nMode == 90) Sam_Stress(argc, argv, 0);	// 스트레스테스트-각각의 파일에 쓰기, sam_log 90 2 10 100
+		else if (nMode == 91) Sam_Stress(argc, argv, 1);	// 스트레스테스트-하나의 파일에 쓰기, sam_log 91 2 10 100
+		else fprintf(stderr, cUsage);
+	}
+	else {
+		fprintf(stderr, cUsage);
+	}
+
+	return 0;
 }
 
 
@@ -90,6 +88,28 @@ void Sam_Unittest(int argc, char *argv[])
 *****************************************************************************************************************************************************************************************************/
 void Sam_Basic1()
 {
+	WCLog cLog;
+
+	// 로그파일 오픈
+	cLog.Open("zz01.log", WCLog::E_LEVEL_ALL, WCLog::E_CYCLE_DAY);				// 일별주기로 파일을 생성한다.
+
+	// 로그파일 쓰기 
+	cLog.WriteConsole(WCLog::E_LEVEL_ALL, str(boost::format("1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg") % 1));
+	cLog.Write(WCLog::E_LEVEL_ALL, str(boost::format("1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg") % 2));
+	cLog.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", 3);
+
+	// 로그파일 닫기 
+	cLog.Close();
+}
+
+
+/****************************************************************************************************************************************************************************************************
+* 2. 기본 사용법2
+*
+* 로그파일을 생성하고 사용하는 기본 사용법을 보여준다.
+*****************************************************************************************************************************************************************************************************/
+void Sam_Basic2()
+{
 	WCLog cLog1, cLog2, cLog3, cLog4, cLog5, cLog6;
 	char *pcTemp, cTemp[20], cTems[2];
 	memset(cTemp,0x00,sizeof(cTemp));
@@ -111,12 +131,12 @@ void Sam_Basic1()
 	// 로그파일 쓰기 
 	for (int i=0; i<3; i++)
 	{
-		cLog1.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog2.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog3.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);	// 파일이 생성되지 않아서 표준출력으로 표시된다.
-		cLog4.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog5.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog6.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog1.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog2.Write(WCLog::E_LEVEL_ALL, str(boost::format("1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg") % i));
+		cLog3.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);	// 파일이 생성되지 않아서 표준출력으로 표시된다.
+		cLog4.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog5.Write(WCLog::E_LEVEL_ALL, str(boost::format("1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg") % i));
+		cLog6.WriteConsole(WCLog::E_LEVEL_ALL, str(boost::format("1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg") % i));
 	}
 
 	// 로그파일 닫기 
@@ -130,11 +150,11 @@ void Sam_Basic1()
 
 
 /****************************************************************************************************************************************************************************************************
-* 2. 기본 사용법2
+* 3. 기본 사용법3
 *
 * 로그 모드에 따라 출력 여부를 확인한다.
 *****************************************************************************************************************************************************************************************************/
-void Sam_Basic2()
+void Sam_Basic3()
 {
 	WCLog cLog1, cLog11, cLog12, cLog2, cLog3, cLog4, cLog5, cLog6, cLog7;
 
@@ -152,34 +172,34 @@ void Sam_Basic2()
 	// 로그파일 쓰기 - 1로 시작하는 문자열은 쓰여져야하고 0으로 시작하는 문자열은 쓰여지면 안 됨 
 	for (int i=0; i<3; i++)
 	{
-		cLog1.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog11.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog12.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog1.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog11.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog12.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog2.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog2.CoutlnFormat(WCLog::E_LEVEL_DEBUG, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog2.CoutlnFormat(WCLog::E_LEVEL_WARN, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog2.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog2.WriteFormat(WCLog::E_LEVEL_DEBUG, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog2.WriteFormat(WCLog::E_LEVEL_WARN, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog3.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog3.CoutlnFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog3.CoutlnFormat(WCLog::E_LEVEL_ERROR, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog3.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog3.WriteFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog3.WriteFormat(WCLog::E_LEVEL_ERROR, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog4.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog4.CoutlnFormat(WCLog::E_LEVEL_ERROR, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog4.CoutlnFormat(WCLog::E_LEVEL_NORMAL, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog4.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog4.WriteFormat(WCLog::E_LEVEL_ERROR, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog4.WriteFormat(WCLog::E_LEVEL_NORMAL, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog5.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog5.CoutlnFormat(WCLog::E_LEVEL_NORMAL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog5.CoutlnFormat(WCLog::E_LEVEL_WARN, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog5.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog5.WriteFormat(WCLog::E_LEVEL_NORMAL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog5.WriteFormat(WCLog::E_LEVEL_WARN, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog6.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog6.CoutlnFormat(WCLog::E_LEVEL_NORMAL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog6.CoutlnFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog6.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog6.WriteFormat(WCLog::E_LEVEL_NORMAL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog6.WriteFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
-		cLog7.CoutlnFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog7.CoutlnFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog7.CoutlnFormat(WCLog::E_LEVEL_ERROR, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
-		cLog7.CoutlnFormat(WCLog::E_LEVEL_NORMAL, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog7.WriteFormat(WCLog::E_LEVEL_ALL, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog7.WriteFormat(WCLog::E_LEVEL_WARN, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog7.WriteFormat(WCLog::E_LEVEL_ERROR, "1 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
+		cLog7.WriteFormat(WCLog::E_LEVEL_NORMAL, "0 %02d-abcdefg 11abcdefg 21abcdefg 31abcdefg 41abcdefg 51abcdefg", i);
 
 		cLog1.Close();								// 닫으면 이후는 표준출력으로 보여준다.
 	}
@@ -198,7 +218,8 @@ void Sam_Basic2()
 
 
 /****************************************************************************************************************************************************************************************************
-* 9. 스트레스 테스트
+* 90. 스트레스 테스트 - 각가의 파일에 쓰기
+* 91. 스트레스 테스트 - 하나의 파일에 쓰기
 *
 * 멀티프로세스, 멀티쓰레드 스트레드 테스트
 *****************************************************************************************************************************************************************************************************/
@@ -269,7 +290,7 @@ void Sam_Stress(int argc, char *argv[], int nType)
 	}
 	else 
 	{	// 부모 : 자식 프로세스 대기
-		while (wait_r(NULL) > 0);
+		while (WC_Wait(NULL) > 0);
 		fprintf(stderr,"[%s] Parend End 1 (Pid:%d)\n", __FUNCTION__, getpid());
 	}
 }
@@ -290,7 +311,7 @@ void * ThreadFunc(void *pArg)
 	fprintf(stderr,"[%s] Start (Pid:%d)(Pno:%d)\n", __FUNCTION__, getpid(), nPno);
 	// 시작시간 기록
 	gettimeofday(&tv,NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time Start (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -308,7 +329,7 @@ void * ThreadFunc(void *pArg)
 		for(int i=0; i<gnLine; i++) {
 			nLen = sprintf(cTemp, "[%s][%010d] 1ng2ng3ng4ng5ng6ng7ng8ng9ngAngBngCngDngEngFngGngHngIngJngKngLngMngNngOngPngQngRngSngTngUngVngWngXngYngZnga1234512345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890-%03d\n", __FUNCTION__, nPno, i);
 			cTemp[nLen] = 0x00;
-			tLog.CoutlnFormat(WCLog::E_LEVEL_ALL, cTemp);
+			tLog.WriteFormat(WCLog::E_LEVEL_ALL, cTemp);
 			usleep(1);
 		}
 		tLog.Close();
@@ -318,11 +339,11 @@ void * ThreadFunc(void *pArg)
 		// 하나의 파일에 쓰기 (모든 쓰레드가 하나의 파일에 쓴다.)
 		for(int i=0; i<gnLine; i++)
 		{
-			gLog1.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s][%010d] 1ng2ng3ng4ng5ng6ng7ng8ng9ngAngBngCngDngEngFngGngHngIngJngKngLngMngNngOngPngQngRngSngTngUngVngWngXngYngZnga123451234567890123456789012345678901234567890123456789012345678901234567890-%03d\n",__FUNCTION__,nPno,i);
+			gLog1.WriteFormat(WCLog::E_LEVEL_ALL, "[%s][%010d] 1ng2ng3ng4ng5ng6ng7ng8ng9ngAngBngCngDngEngFngGngHngIngJngKngLngMngNngOngPngQngRngSngTngUngVngWngXngYngZnga123451234567890123456789012345678901234567890123456789012345678901234567890-%03d\n",__FUNCTION__,nPno,i);
 			//WC_COUTLN(WCLog::E_LEVEL_ALL,"[%s][%010d] 1ng2ng3ng4ng5ng6ng7ng8ng9ngAngBngCngDngEngFngGngHngIngJngKngLngMngNngOngPngQngRngSngTngUngVngWngXngYngZnga123451234567890123456789012345678901234567890123456789012345678901234567890-%03d\n",__FUNCTION__,nPno,i);
 			usleep(1);
 		}
-		WCLOG_COUTLNFORMAT(WCLog::E_LEVEL_ALL,"[%s] End 1 (%d)\n",__FUNCTION__,nPno);
+		WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL,"[%s] End 1 (%d)\n",__FUNCTION__,nPno);
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -332,7 +353,7 @@ void * ThreadFunc(void *pArg)
 
 	// 종료시간 기록
 	gettimeofday(&tv, NULL);
-	gLogT.CoutlnFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
+	gLogT.WriteFormat(WCLog::E_LEVEL_ALL, "[%s] Time End (Pid:%d)(Pno:%d) (Time:%ld-%ld)", __FUNCTION__, getpid(), nPno, tv.tv_sec, tv.tv_usec);
 	// 쓰레드 종료
 	fprintf(stderr, "[%s] End (Pid:%d)(Pno:%d)\n", __FUNCTION__, getpid(), nPno);
 
@@ -349,10 +370,10 @@ TEST(UnitTest_WCLog, UTLogBasic1)
 	// 로그 오픈 
 	nRet1 = cLog1.Open("zt01.log", WCLog::E_LEVEL_ALL, WCLog::E_CYCLE_ONE);
 	EXPECT_EQ(nRet1, WC_OK);
-	EXPECT_EQ(cLog1.IsOpen(), false);
+	EXPECT_EQ(cLog1.IsOpen(), true);
 
 	// 로그 쓰기 
-	nRet1 = cLog1.CoutlnFormat(WCLog::E_LEVEL_ALL, "ABCDE");
+	nRet1 = cLog1.WriteFormat(WCLog::E_LEVEL_ALL, "ABCDE");
 	EXPECT_EQ(nRet1, 6);
 
 	// 로그 닫기

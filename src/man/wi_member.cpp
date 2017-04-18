@@ -3,7 +3,7 @@
    	@brief WIMember 클래스
 */
 
-#include "wc_lib.h"
+#include "../wc_lib.h"
 
 // 생성자
 WIMember::WIMember() : m_bInDel(false)

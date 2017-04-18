@@ -92,7 +92,7 @@ public:
 	@return 성공: 양수
 	@return 실패: 없음
 	*/
-	unsigned long long GetKeyPrivate() const {
+	unsigned long long GetKeyPri() const {
 		return m_unllKeyPri;
 	}
 
@@ -103,7 +103,7 @@ public:
 	@return 성공: 양수
 	@return 실패: 없음
 	*/
-	unsigned long long GetKeyGroup() const {
+	unsigned long long GetKeyGrp() const {
 		return m_unllKeyGrp;
 	}	
 

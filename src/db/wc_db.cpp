@@ -3,7 +3,7 @@
 	@brief WCDb 소스
 */
 
-#include "wc_lib.h"
+#include "../wc_lib.h"
 
 #define INITLIST m_strIP(""), m_nPort(0), m_strID(""), m_strPW(""), m_strDB(""), m_eCharSet(E_CHARSET_UTF8)
 

@@ -12,16 +12,24 @@ Usage : sam_db 모드번호
 void Sam_Unittest(int argc, char *argv[]);
 void Sam_Basic1();
 
+// 메인 함수
 int main(int argc, char *argv[])
 {
 	int nMode = -1;
+	char cUsage[] = "@ usage\n\tsam_db ModeNo\n@ option\n\tModeNo : 0-UnitTest, 1-BasicUsage1\
+			\n@ Example\n\tsam_db 0\n\tsam_db 1\n";
+
+	//SamInit();
 
 	if (argc > 1) {
 		nMode = atoi(argv[1]);
+		if (nMode == 0) Sam_Unittest(argc, argv);			// 단위테스트, sam_db 0
+		else if (nMode == 1) Sam_Basic1();					// 기본사용법1, sam_db 1
+		else fprintf(stderr, cUsage);
 	}
-
-	if (nMode == 0) Sam_Unittest(argc,argv);		// 단위테스트, sam_db 0 (WCDb 단위테스트만 실행시킬 경우, "--gtest_filter=UnitTest_WCDb.*" 인자 추가)
-	else if (nMode == 1) Sam_Basic1();				// 기본사용법1, sam_db 1
+	else {
+		fprintf(stderr, cUsage);
+	}
 
 	return 0;
 }
@@ -39,10 +47,15 @@ public:
 	WCTestDb();
 	/// 소멸자
 	virtual ~WCTestDb();
+
+	virtual int Open();
 	/// DB 열기
-	virtual int VOpen(const char *pcIP, const char *pcID, const char *pcPW, const char *pcDB, const int nChar=-1);
+	virtual int Open(const string& strIP, const int nPort, const string& strID, const string& strPW, const string& strDB, const E_CHARSET eCharSet=E_CHARSET_UTF8);
 	/// DB 닫기
-	virtual int VClose();
+	virtual int Close();
+
+	virtual bool IsOpen();
+	int Query(string& strQuery);
 };
 
 WCTestDb::WCTestDb()
@@ -53,15 +66,31 @@ WCTestDb::~WCTestDb()
 {
 }
 
-int WCTestDb::VOpen(const char *pcIP, const char *pcID, const char *pcPW, const char *pcDB, const int nChar)
+int WCTestDb::Open()
 {
 	return 0;
 }
 
-int WCTestDb::VClose()
+int WCTestDb::Open(const string& strIP, const int nPort, const string& strID, const string& strPW, const string& strDB, const E_CHARSET eCharSet)
 {
 	return 0;
 }
+
+int WCTestDb::Close()
+{
+	return 0;
+}
+
+bool WCTestDb::IsOpen()
+{
+	return true;
+}
+
+int WCTestDb::Query(string& strQuery)
+{
+	return 0;
+}
+
 
 /****************************************************************************************************************************************************************************************************
 * 0. 단위 테스트
@@ -72,7 +101,9 @@ void Sam_Unittest(int argc, char *argv[])
 
 	testing::InitGoogleTest(&argc,argv);
 
-	nRet = RUN_ALL_TESTS(); // 모든 테스트를 수행한다.
+	nRet = RUN_ALL_TESTS();
+
+	if (nRet == -1) fprintf(stderr,"[Er] RUN_ALL_TESTS\n");
 }
 
 
@@ -90,26 +121,21 @@ void Sam_Basic1()
 		pDB2 = new WCTestDb();
 
 		// DB정보를 설정하고 출력한다.
-		wDB1.SetIP("211.238.138.235");
-		wDB1.SetID("admin");
-		wDB1.SetPW("arreo123");
-		wDB1.SetDB("MyDB");
+		wDB1.Set("211.238.138.235", 9090, "admin", "admin1973$", "mydb");
+
 		if (pDB2) {
-			pDB2->SetIP("211.238.138.235.AAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBB");
-			pDB2->SetID("adminAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBB");
-			pDB2->SetPW("arreo123AAAAAAAAAAAAAABBBBBBBBBBBBBBAAAAAAAAAAAAA");
-			pDB2->SetDB("MyDBAAAAAAAAAAAABBBBBBBBBBBBBBBAAAAAAAAAAAAAAA");
+			pDB2->Set("211.238.138.235.AAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBB", 7718, "adminAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBB", "arreo123AAAAAAAAAAAAAABBBBBBBBBBBBBBAAAAAAAAAAAAA$", "MyDBAAAAAAAAAAAABBBBBBBBBBBBBBBAAAAAAAAAAAAAAA");
 		}
-		WcLogPrintf(WCLog::E_MODE_ALL,"[DB1] (%s)(%s)(%s)(%s)\n",wDB1.GetIP(),wDB1.GetID(),wDB1.GetPW(),wDB1.GetDB());
-		WcLogPrintf(WCLog::E_MODE_ALL,"[DB2] (%s)(%s)(%s)(%s)\n",pDB2->GetIP(),pDB2->GetID(),pDB2->GetPW(),pDB2->GetDB());
+		WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL,"[DB1] (%s)(%s)(%s)(%s)\n",wDB1.GetIP().c_str(),wDB1.GetID().c_str(),wDB1.GetPW().c_str(),wDB1.GetDB().c_str());
+		WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL,"[DB2] (%s)(%s)(%s)(%s)\n",pDB2->GetIP().c_str(),pDB2->GetID().c_str(),pDB2->GetPW().c_str(),pDB2->GetDB().c_str());
 
 		// 복사생성, 대입연산
 		WCTestDb wDBS,wDBR=wDB1;
 		wDBS = wDB1;
 
-		WcLogPrintf(WCLog::E_MODE_ALL,"[DBR] (%s)(%s)(%s)(%s)\n",wDBR.GetIP(),wDBR.GetID(),wDBR.GetPW(),wDBR.GetDB());
-		WcLogPrintf(WCLog::E_MODE_ALL,"[DBS] (%s)(%s)(%s)(%s)\n",wDBS.GetIP(),wDBS.GetID(),wDBS.GetPW(),wDBS.GetDB());
+		WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL,"[DBR] (%s)(%s)(%s)(%s)\n",wDBR.GetIP().c_str(),wDBR.GetID().c_str(),wDBR.GetPW().c_str(),wDBR.GetDB().c_str());
+		WCLOG_WRITEFORMAT(WCLog::E_LEVEL_ALL,"[DBS] (%s)(%s)(%s)(%s)\n",wDBS.GetIP().c_str(),wDBS.GetID().c_str(),wDBS.GetPW().c_str(),wDBS.GetDB().c_str());
 
-		WcXDeleteW(pDB2);
+		WC_DELETE_WC(pDB2);
 	}
 }
